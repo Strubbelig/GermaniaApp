@@ -6,3 +6,11 @@ verify_jwt = true
 
 [functions.send-email]
 verify_jwt = true
+
+[functions.create-checkout]
+verify_jwt = true
+
+# Stripe calls this directly and can't send a Supabase JWT — it authenticates via
+# the Stripe signature instead, so JWT verification must be OFF here.
+[functions.stripe-webhook]
+verify_jwt = false

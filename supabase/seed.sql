@@ -41,6 +41,10 @@ insert into member (id, salutation, first_name, last_name, email, phone, member_
  ('a0000000-0000-0000-0000-00000000000a','','Camille','Laurent','camille.laurent@example.org','+33 1 1110010','2022-05-18','1986-10-09','female','IP lawyer in Paris.')
 on conflict (id) do nothing;
 
+-- Demo roles: Anna is admin, Markus is officer (everyone else stays 'member').
+update member set role = 'admin'   where id = 'a0000000-0000-0000-0000-000000000001';
+update member set role = 'officer' where id = 'a0000000-0000-0000-0000-000000000004';
+
 -- --- Primary addresses (geocoded) --------------------------------------------
 insert into address (member_id, label, is_primary, street, postal_code, city, region, country_code, geo) values
  ('a0000000-0000-0000-0000-000000000001','home',true,'Hauptstrasse 5','10115','Berlin','Berlin','DE',     st_setsrid(st_makepoint(13.4050,52.5200),4326)::geography),
@@ -96,6 +100,11 @@ insert into gathering (title, description, venue_name, city, country_code, geo, 
  ('London Members Dinner','Quarterly dinner in the City.','The Ivy','London','GB',
     st_setsrid(st_makepoint(-0.1278,51.5074),4326)::geography,'2026-07-17 19:30+01','Europe/London','FREQ=MONTHLY;INTERVAL=3;BYDAY=3FR',
     'a0000000-0000-0000-0000-000000000007');
+
+-- --- Stocherkahn season (Tübingen) -------------------------------------------
+insert into stocherkahn_season (id, name, water_date, withdraw_date, latitude, longitude, is_active) values
+ ('50000000-0000-0000-0000-000000000001','Season 2026','2026-04-01','2026-10-31',48.5216,9.0576,true)
+on conflict (id) do nothing;
 
 -- =============================================================================
 -- Quick checks after loading:

@@ -3,31 +3,39 @@
 // No session → sign-in screen. Signed in → app shell with bottom nav.
 // =============================================================================
 import './styles.css';
-import { DEMO, hasSession, onAuthChange, signOut } from './lib/api';
+import { DEMO, hasSession, onAuthChange, signOut, isStaff } from './lib/api';
 import { mountAuth } from './screens/auth';
 import { mountProfileEditor } from './screens/profile';
 import { mountDirectory } from './screens/directory';
 import { mountGatherings } from './screens/gatherings';
+import { mountStocherkahn } from './screens/stocherkahn';
+import { mountAdmin } from './screens/admin';
 import { el, clear, toast } from './lib/ui';
 
 const app = document.getElementById('app')!;
+let staff = false; // is the signed-in member officer/admin? (controls Admin tab)
 
-type Route = 'members' | 'profile' | 'gatherings';
+type Route = 'members' | 'profile' | 'gatherings' | 'boat' | 'admin';
 const screens: Record<Route, (root: HTMLElement) => void | Promise<void>> = {
   members: mountDirectory,
   profile: mountProfileEditor,
   gatherings: mountGatherings,
+  boat: mountStocherkahn,
+  admin: mountAdmin,
 };
 
 function renderApp(route: Route): void {
   clear(app);
   const body = el('div', { class: 'screen' });
-  const nav = el('nav', { class: 'bottomnav' }, [
+  const items = [
     navBtn('Members', 'members', route),
-    navBtn('My profile', 'profile', route),
-    navBtn('Gatherings', 'gatherings', route),
-    signOutBtn(),
-  ]);
+    navBtn('Profile', 'profile', route),
+    navBtn('Events', 'gatherings', route),
+    navBtn('Boat', 'boat', route),
+  ];
+  if (staff) items.push(navBtn('Admin', 'admin', route));
+  items.push(signOutBtn());
+  const nav = el('nav', { class: 'bottomnav' }, items);
   app.append(body, nav);
   screens[route](body);
 }
@@ -43,16 +51,21 @@ function signOutBtn(): HTMLButtonElement {
   return b;
 }
 
+async function showSignedIn(): Promise<void> {
+  staff = await isStaff().catch(() => false);
+  renderApp('members');
+}
+
 async function boot(): Promise<void> {
-  if (await hasSession()) renderApp('members');
+  if (await hasSession()) await showSignedIn();
   else mountAuth(app);
   if (DEMO) setTimeout(() => toast('Demo mode — sample data, changes reset on refresh'), 400);
 }
 
 // React to sign-in / sign-out anywhere in the app.
 onAuthChange((signedIn) => {
-  if (signedIn) renderApp('members');
-  else mountAuth(app);
+  if (signedIn) showSignedIn();
+  else { staff = false; mountAuth(app); }
 });
 
 boot().catch((e) => {

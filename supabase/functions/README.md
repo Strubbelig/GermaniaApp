@@ -6,6 +6,8 @@ Server-side helpers that keep API keys off the phone.
 |---|---|---|
 | `geocode` | Address → `{ lat, lon }` (OpenStreetMap Nominatim, no key) | `NOMINATIM_EMAIL` (contact, recommended) |
 | `send-email` | Privacy-preserving member-to-member email (BCC) via Resend | `RESEND_API_KEY`, `MAIL_FROM` |
+| `create-checkout` | Stripe Checkout session for a booking's €1 fee | `STRIPE_SECRET_KEY` |
+| `stripe-webhook` | Confirms payment → marks booking paid/confirmed | `STRIPE_WEBHOOK_SECRET` |
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected
 automatically by the platform.
@@ -15,11 +17,23 @@ automatically by the platform.
 ```bash
 supabase functions deploy geocode
 supabase functions deploy send-email
+supabase functions deploy create-checkout
+supabase functions deploy stripe-webhook --no-verify-jwt
 
 # set secrets (once)
 supabase secrets set NOMINATIM_EMAIL=you@example.org
 supabase secrets set RESEND_API_KEY=re_xxx MAIL_FROM="Germania <noreply@yourdomain>"
+supabase secrets set STRIPE_SECRET_KEY=sk_xxx STRIPE_WEBHOOK_SECRET=whsec_xxx
 ```
+
+### Stripe setup (for the Stocherkahn €1 fee)
+
+1. Create a Stripe account; copy your secret key into `STRIPE_SECRET_KEY`.
+2. In Stripe → Developers → Webhooks, add an endpoint pointing at the deployed
+   `stripe-webhook` URL, subscribe to `checkout.session.completed`, and copy the
+   signing secret into `STRIPE_WEBHOOK_SECRET`.
+3. The €1 amount is read from the booking server-side, so the client can't change it.
+   In demo mode there is no Stripe — payment is simulated.
 
 ## Notes
 

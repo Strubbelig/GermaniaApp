@@ -61,6 +61,11 @@ create table member (
     status          text not null default 'active'
                     check (status in ('active','inactive','deceased','pending')),
 
+    -- Access role. 'member' = normal; 'officer' = manage gatherings + taxonomy;
+    -- 'admin' = full control over all members. See the ROLES section below.
+    role            text not null default 'member'
+                    check (role in ('member','officer','admin')),
+
     -- Privacy: what other members may see. The owner always sees everything.
     visibility      text not null default 'members'
                     check (visibility in ('members','officers','private')),
@@ -432,6 +437,167 @@ create policy attendance_read on gathering_attendance for select to authenticate
 create policy attendance_write on gathering_attendance for all to authenticated
     using (member_id = current_member_id())
     with check (member_id = current_member_id());
+
+-- =============================================================================
+-- STOCHERKAHN  (the society's punt boat)
+-- A "season" runs from the day the boat is watered (launched) to the day it is
+-- withdrawn — set by an admin. Within a season the boat can be booked for a
+-- single day at a time, dawn→dusk (times computed from the location's
+-- sunrise/sunset). Each booking carries a €1 reservation fee paid via Stripe.
+-- =============================================================================
+create table stocherkahn_season (
+    id              uuid primary key default gen_random_uuid(),
+    name            text,                       -- e.g. 'Season 2026'
+    water_date      date not null,              -- boat goes in the water
+    withdraw_date   date not null,              -- boat comes out
+    -- Location used to compute dawn/dusk (default Tübingen).
+    latitude        double precision not null default 48.5216,
+    longitude       double precision not null default 9.0576,
+    is_active       boolean not null default true,
+    created_at      timestamptz not null default now(),
+    updated_at      timestamptz not null default now(),
+    check (withdraw_date >= water_date)
+);
+create trigger trg_season_updated before update on stocherkahn_season
+    for each row execute function set_updated_at();
+-- Only one active season at a time.
+create unique index uq_season_active on stocherkahn_season (is_active) where is_active;
+
+create table stocherkahn_booking (
+    id              uuid primary key default gen_random_uuid(),
+    season_id       uuid not null references stocherkahn_season (id) on delete cascade,
+    member_id       uuid not null references member (id) on delete cascade,
+
+    booking_date    date not null,
+    -- Dawn (start) and dusk (end) for that date+location, computed by the app.
+    starts_at       timestamptz not null,
+    ends_at         timestamptz not null,
+
+    status          text not null default 'pending'
+                    check (status in ('pending','confirmed','cancelled')),
+
+    -- €1 reservation fee.
+    fee_cents       int not null default 100,
+    currency        text not null default 'eur',
+    payment_status  text not null default 'unpaid'
+                    check (payment_status in ('unpaid','paid','refunded')),
+    stripe_session_id        text,
+    stripe_payment_intent_id text,
+
+    created_at      timestamptz not null default now(),
+    updated_at      timestamptz not null default now()
+);
+create index on stocherkahn_booking (season_id, booking_date);
+create index on stocherkahn_booking (member_id);
+-- The boat is a single resource: at most one (non-cancelled) booking per day.
+create unique index uq_booking_day on stocherkahn_booking (booking_date)
+    where status <> 'cancelled';
+create trigger trg_booking_updated before update on stocherkahn_booking
+    for each row execute function set_updated_at();
+
+-- Enforce: a booking date must fall inside its season window.
+create or replace function guard_booking_in_season()
+returns trigger language plpgsql as $$
+declare s stocherkahn_season;
+begin
+    select * into s from stocherkahn_season where id = new.season_id;
+    if new.booking_date < s.water_date or new.booking_date > s.withdraw_date then
+        raise exception 'Booking date % is outside the season (% to %)',
+            new.booking_date, s.water_date, s.withdraw_date;
+    end if;
+    return new;
+end;
+$$;
+create trigger trg_booking_in_season before insert or update on stocherkahn_booking
+    for each row execute function guard_booking_in_season();
+
+alter table stocherkahn_season  enable row level security;
+alter table stocherkahn_booking enable row level security;
+
+-- Everyone signed in can see the season + all bookings (to know availability).
+create policy season_read on stocherkahn_season for select to authenticated using (true);
+create policy booking_read on stocherkahn_booking for select to authenticated using (true);
+
+-- Members create / cancel their OWN bookings.
+create policy booking_insert on stocherkahn_booking for insert to authenticated
+    with check (member_id = current_member_id());
+create policy booking_update on stocherkahn_booking for update to authenticated
+    using (member_id = current_member_id())
+    with check (member_id = current_member_id());
+
+-- =============================================================================
+-- ROLES & ADMIN
+-- Additive: Postgres OR-combines multiple PERMISSIVE policies, so these new
+-- policies *grant extra* power to staff/admins without weakening the owner-only
+-- rules above. Role checks use SECURITY DEFINER helpers so they bypass RLS on
+-- `member` and don't cause policy recursion.
+-- =============================================================================
+
+create or replace function current_member_role()
+returns text language sql stable security definer set search_path = public as $$
+    select role from member where auth_user_id = auth.uid();
+$$;
+
+create or replace function is_admin()
+returns boolean language sql stable as $$ select current_member_role() = 'admin'; $$;
+
+create or replace function is_staff()
+returns boolean language sql stable as $$
+    select current_member_role() in ('admin','officer');
+$$;
+
+-- Prevent privilege escalation: only an admin may change a member's role.
+create or replace function guard_member_role()
+returns trigger language plpgsql as $$
+begin
+    if new.role is distinct from old.role and not is_admin() then
+        raise exception 'Only an admin can change a member role';
+    end if;
+    return new;
+end;
+$$;
+create trigger trg_guard_member_role before update on member
+    for each row execute function guard_member_role();
+
+-- Admin-only RPC to (de)promote a member.
+create or replace function set_member_role(target uuid, new_role text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+    if not is_admin() then raise exception 'Not authorized'; end if;
+    if new_role not in ('member','officer','admin') then
+        raise exception 'Invalid role %', new_role;
+    end if;
+    update member set role = new_role where id = target;
+end;
+$$;
+
+-- Admins can update or delete ANY member.
+create policy member_admin_update on member for update to authenticated
+    using (is_admin()) with check (is_admin());
+create policy member_admin_delete on member for delete to authenticated
+    using (is_admin());
+
+-- Admins can write any member's addresses / professions / relatives.
+create policy address_admin_write on address for all to authenticated
+    using (is_admin()) with check (is_admin());
+create policy mp_admin_write on member_profession for all to authenticated
+    using (is_admin()) with check (is_admin());
+create policy relative_admin_write on relative for all to authenticated
+    using (is_admin()) with check (is_admin());
+
+-- Staff (officer or admin) manage the profession taxonomy.
+create policy pc_staff_write on profession_category for all to authenticated
+    using (is_staff()) with check (is_staff());
+
+-- Staff manage any gathering (in addition to the host-only policies above).
+create policy gathering_staff_write on gathering for all to authenticated
+    using (is_staff()) with check (is_staff());
+
+-- Admins set the Stocherkahn season; staff can manage any booking.
+create policy season_staff_write on stocherkahn_season for all to authenticated
+    using (is_admin()) with check (is_admin());
+create policy booking_staff_write on stocherkahn_booking for all to authenticated
+    using (is_staff()) with check (is_staff());
 
 -- =============================================================================
 -- MINIMAL SEED (illustrative — safe to delete)

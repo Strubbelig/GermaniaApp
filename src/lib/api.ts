@@ -57,6 +57,25 @@ export const rsvpToGathering = impl.rsvpToGathering;
 export const exportContacts = impl.exportContacts;
 export const exportContactsCsv = impl.exportContactsCsv;
 
+// stocherkahn
+export const getActiveSeason = impl.getActiveSeason;
+export const saveSeason = impl.saveSeason;
+export const listBookings = impl.listBookings;
+export const listMyBookings = impl.listMyBookings;
+export const createBooking = impl.createBooking;
+export const startCheckout = impl.startCheckout;
+export const cancelBooking = impl.cancelBooking;
+
+// admin
+export const getMyRole = impl.getMyRole;
+export const isAdmin = impl.isAdmin;
+export const isStaff = impl.isStaff;
+export const listAllMembers = impl.listAllMembers;
+export const setMemberRole = impl.setMemberRole;
+export const deleteMember = impl.deleteMember;
+export const addProfessionCategory = impl.addProfessionCategory;
+export const deleteProfessionCategory = impl.deleteProfessionCategory;
+
 // pure helpers — always the real implementations (no backend needed)
 export const mailtoFor = real.mailtoFor;
 export const toCsv = real.toCsv;

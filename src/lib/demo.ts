@@ -5,10 +5,12 @@
 // 10 members as supabase/seed.sql. Edits live only until page refresh.
 // =============================================================================
 import { ageFromDob, toCsv, downloadCsv } from './queries';
+import { civilDawnDusk } from './suntimes';
 import { toast } from './ui';
 import type {
   Member, Address, ProfessionCategory, MemberProfession, Relative, RelativeDetail,
-  Gathering, GatheringAttendance, DirectoryEntry, NearbyMember, ProfessionMatch, Rsvp,
+  Gathering, GatheringAttendance, DirectoryEntry, NearbyMember, ProfessionMatch, Rsvp, Role,
+  StocherkahnSeason, StocherkahnBooking,
 } from './database.types';
 
 const now = new Date().toISOString();
@@ -39,6 +41,7 @@ const members: Member[] = SRC.map((s) => ({
   id: s.id, auth_user_id: null, salutation: s.sal, first_name: s.first, last_name: s.last,
   maiden_name: null, date_of_birth: s.dob, gender: s.gender, email: s.email, phone: s.phone,
   website: null, photo_url: null, bio: s.bio, member_since: null, status: 'active',
+  role: s.id === 'm1' ? 'admin' : s.id === 'm4' ? 'officer' : 'member',
   visibility: 'members', show_email: true, show_address: true, show_family: true,
   created_at: now, updated_at: now,
 }));
@@ -235,6 +238,63 @@ export const exportContacts = async (ids: string[]) =>
   }));
 export const exportContactsCsv = async (ids: string[], filename = 'contacts.csv') => {
   downloadCsv(filename, toCsv(await exportContacts(ids)));
+};
+
+// admin
+export const getMyRole = () => wait(members.find((m) => m.id === ME)!.role);
+export const isAdmin = () => wait(members.find((m) => m.id === ME)!.role === 'admin');
+export const isStaff = () => wait(['admin', 'officer'].includes(members.find((m) => m.id === ME)!.role));
+export const listAllMembers = () => wait([...members].sort((a, b) => a.last_name.localeCompare(b.last_name)));
+export const setMemberRole = async (target: string, role: Role) => {
+  const m = members.find((x) => x.id === target);
+  if (m) m.role = role;
+};
+export const deleteMember = async (id: string) => { remove(members, id); };
+export const addProfessionCategory = async (name: string, slug: string, parentId: string | null = null) => {
+  const c: ProfessionCategory = { id: slug || uid(), parent_id: parentId, name, slug, created_at: now };
+  categories.push(c); return c;
+};
+export const deleteProfessionCategory = async (id: string) => { remove(categories, id); };
+
+// stocherkahn
+let season: StocherkahnSeason = {
+  id: 'season-2026', name: 'Season 2026', water_date: '2026-04-01', withdraw_date: '2026-10-31',
+  latitude: 48.5216, longitude: 9.0576, is_active: true, created_at: now, updated_at: now,
+};
+const bookings: StocherkahnBooking[] = [];
+
+export const getActiveSeason = () => wait(season);
+export const saveSeason = async (input: any) => {
+  season = { ...season, ...input, updated_at: new Date().toISOString() };
+  return season;
+};
+export const listBookings = (seasonId: string) =>
+  wait(bookings.filter((b) => b.season_id === seasonId && b.status !== 'cancelled'));
+export const listMyBookings = (memberId: string) =>
+  wait(bookings.filter((b) => b.member_id === memberId));
+export const createBooking = async (memberId: string, date: string): Promise<StocherkahnBooking> => {
+  if (bookings.some((b) => b.booking_date === date && b.status !== 'cancelled')) {
+    throw new Error('That day is already booked.');
+  }
+  const { dawn, dusk } = civilDawnDusk(date, season.latitude, season.longitude);
+  const b: StocherkahnBooking = {
+    id: uid(), season_id: season.id, member_id: memberId, booking_date: date,
+    starts_at: (dawn ?? new Date(date)).toISOString(), ends_at: (dusk ?? new Date(date)).toISOString(),
+    status: 'pending', fee_cents: 100, currency: 'eur', payment_status: 'unpaid',
+    stripe_session_id: null, stripe_payment_intent_id: null, created_at: now, updated_at: now,
+  };
+  bookings.push(b); return b;
+};
+export const startCheckout = async (bookingId: string): Promise<string> => {
+  // Demo: no real Stripe — simulate a successful €1 payment.
+  const b = bookings.find((x) => x.id === bookingId);
+  if (b) { b.payment_status = 'paid'; b.status = 'confirmed'; }
+  toast('Paid €1 (demo — no real charge)');
+  return location.href;
+};
+export const cancelBooking = async (id: string) => {
+  const b = bookings.find((x) => x.id === id);
+  if (b) b.status = 'cancelled';
 };
 
 function remove<T extends { id: string }>(arr: T[], id: string): void {

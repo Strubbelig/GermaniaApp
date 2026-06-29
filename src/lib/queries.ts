@@ -21,7 +21,11 @@ import type {
   NearbyMember,
   ProfessionMatch,
   Rsvp,
+  Role,
+  StocherkahnSeason,
+  StocherkahnBooking,
 } from './database.types';
+import { civilDawnDusk } from './suntimes';
 
 // --- small helpers -----------------------------------------------------------
 function unwrap<T>(res: { data: T | null; error: { message: string } | null }): T {
@@ -394,6 +398,147 @@ export async function rsvpToGathering(
     .select('*')
     .single();
   return unwrap(res);
+}
+
+// =============================================================================
+// STOCHERKAHN (the society boat) — season + bookings + Stripe checkout
+// =============================================================================
+export async function getActiveSeason(): Promise<StocherkahnSeason | null> {
+  const res = await supabase
+    .from('stocherkahn_season')
+    .select('*')
+    .eq('is_active', true)
+    .maybeSingle();
+  return unwrap(res);
+}
+
+/** Admin: create or update the active season (dates + location). */
+export async function saveSeason(input: {
+  name?: string | null;
+  water_date: string;
+  withdraw_date: string;
+  latitude?: number;
+  longitude?: number;
+}): Promise<StocherkahnSeason> {
+  const existing = await getActiveSeason();
+  if (existing) {
+    const res = await supabase
+      .from('stocherkahn_season')
+      .update(input)
+      .eq('id', existing.id)
+      .select('*')
+      .single();
+    return unwrap(res);
+  }
+  const res = await supabase
+    .from('stocherkahn_season')
+    .insert({ ...input, is_active: true })
+    .select('*')
+    .single();
+  return unwrap(res);
+}
+
+export async function listBookings(seasonId: string): Promise<StocherkahnBooking[]> {
+  const res = await supabase
+    .from('stocherkahn_booking')
+    .select('*')
+    .eq('season_id', seasonId)
+    .neq('status', 'cancelled')
+    .order('booking_date');
+  return unwrap(res) ?? [];
+}
+
+export async function listMyBookings(memberId: string): Promise<StocherkahnBooking[]> {
+  const res = await supabase
+    .from('stocherkahn_booking')
+    .select('*')
+    .eq('member_id', memberId)
+    .order('booking_date');
+  return unwrap(res) ?? [];
+}
+
+/** Book the boat for one day; dawn/dusk are computed from the season location. */
+export async function createBooking(memberId: string, date: string): Promise<StocherkahnBooking> {
+  const season = await getActiveSeason();
+  if (!season) throw new Error('No active season — the boat is not currently in the water.');
+  const { dawn, dusk } = civilDawnDusk(date, season.latitude, season.longitude);
+  if (!dawn || !dusk) throw new Error('No daylight window for that date.');
+  const res = await supabase
+    .from('stocherkahn_booking')
+    .insert({
+      season_id: season.id,
+      member_id: memberId,
+      booking_date: date,
+      starts_at: dawn.toISOString(),
+      ends_at: dusk.toISOString(),
+    })
+    .select('*')
+    .single();
+  return unwrap(res);
+}
+
+/** Start Stripe checkout for a booking's €1 fee; returns the URL to redirect to. */
+export async function startCheckout(bookingId: string): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('create-checkout', {
+    body: { booking_id: bookingId, success_url: location.href, cancel_url: location.href },
+  });
+  if (error) throw new Error(error.message);
+  const url = (data as { url?: string } | null)?.url;
+  if (!url) throw new Error('Could not start checkout.');
+  return url;
+}
+
+export async function cancelBooking(id: string): Promise<void> {
+  const { error } = await supabase.from('stocherkahn_booking').update({ status: 'cancelled' }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// =============================================================================
+// ADMIN  (gated by RLS — these only succeed for staff/admin members)
+// =============================================================================
+export async function getMyRole(): Promise<Role> {
+  const m = await getMyMember();
+  return m?.role ?? 'member';
+}
+export async function isAdmin(): Promise<boolean> {
+  return (await getMyRole()) === 'admin';
+}
+export async function isStaff(): Promise<boolean> {
+  return ['admin', 'officer'].includes(await getMyRole());
+}
+
+/** All members (admin view) with role, for the admin screen. */
+export async function listAllMembers(): Promise<Member[]> {
+  const res = await supabase.from('member').select('*').order('last_name');
+  return unwrap(res) ?? [];
+}
+
+export async function setMemberRole(target: string, role: Role): Promise<void> {
+  const { error } = await supabase.rpc('set_member_role', { target, new_role: role });
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteMember(id: string): Promise<void> {
+  const { error } = await supabase.from('member').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function addProfessionCategory(
+  name: string,
+  slug: string,
+  parentId: string | null = null,
+): Promise<ProfessionCategory> {
+  const res = await supabase
+    .from('profession_category')
+    .insert({ name, slug, parent_id: parentId })
+    .select('*')
+    .single();
+  return unwrap(res);
+}
+
+export async function deleteProfessionCategory(id: string): Promise<void> {
+  const { error } = await supabase.from('profession_category').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 // =============================================================================

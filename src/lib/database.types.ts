@@ -5,6 +5,9 @@
 // The shape below matches what `supabase gen types` produces, so swapping is clean.
 // =============================================================================
 
+export type Role = 'member' | 'officer' | 'admin';
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';
+export type PaymentStatus = 'unpaid' | 'paid' | 'refunded';
 export type Visibility = 'members' | 'officers' | 'private';
 export type Gender = 'female' | 'male' | 'other' | 'undisclosed';
 export type MemberStatus = 'active' | 'inactive' | 'deceased' | 'pending';
@@ -33,6 +36,7 @@ export interface Database {
           bio: string | null;
           member_since: string | null;
           status: MemberStatus;
+          role: Role;
           visibility: Visibility;
           show_email: boolean;
           show_address: boolean;
@@ -166,6 +170,43 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['gathering_attendance']['Row'], 'created_at'>;
         Update: Partial<Database['public']['Tables']['gathering_attendance']['Insert']>;
       };
+      stocherkahn_season: {
+        Row: {
+          id: string;
+          name: string | null;
+          water_date: string;
+          withdraw_date: string;
+          latitude: number;
+          longitude: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['stocherkahn_season']['Row'], 'id' | 'created_at' | 'updated_at'> &
+          Partial<Pick<Database['public']['Tables']['stocherkahn_season']['Row'], 'id' | 'latitude' | 'longitude' | 'is_active'>>;
+        Update: Partial<Database['public']['Tables']['stocherkahn_season']['Insert']>;
+      };
+      stocherkahn_booking: {
+        Row: {
+          id: string;
+          season_id: string;
+          member_id: string;
+          booking_date: string;
+          starts_at: string;
+          ends_at: string;
+          status: BookingStatus;
+          fee_cents: number;
+          currency: string;
+          payment_status: PaymentStatus;
+          stripe_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['stocherkahn_booking']['Row'], 'id' | 'created_at' | 'updated_at' | 'status' | 'fee_cents' | 'currency' | 'payment_status' | 'stripe_session_id' | 'stripe_payment_intent_id'> &
+          Partial<Pick<Database['public']['Tables']['stocherkahn_booking']['Row'], 'id' | 'status' | 'fee_cents' | 'currency' | 'payment_status'>>;
+        Update: Partial<Database['public']['Tables']['stocherkahn_booking']['Row']>;
+      };
     };
     Views: {
       member_directory: {
@@ -241,6 +282,10 @@ export interface Database {
         Args: Record<string, never>;
         Returns: string;
       };
+      set_member_role: {
+        Args: { target: string; new_role: Role };
+        Returns: undefined;
+      };
     };
   };
 }
@@ -254,6 +299,8 @@ export type Relative = Database['public']['Tables']['relative']['Row'];
 export type RelativeDetail = Database['public']['Views']['relative_detail']['Row'];
 export type Gathering = Database['public']['Tables']['gathering']['Row'];
 export type GatheringAttendance = Database['public']['Tables']['gathering_attendance']['Row'];
+export type StocherkahnSeason = Database['public']['Tables']['stocherkahn_season']['Row'];
+export type StocherkahnBooking = Database['public']['Tables']['stocherkahn_booking']['Row'];
 export type DirectoryEntry = Database['public']['Views']['member_directory']['Row'];
 export type ContactExportRow = Database['public']['Views']['member_contact_export']['Row'];
 export type NearbyMember = Database['public']['Functions']['members_near']['Returns'][number];
