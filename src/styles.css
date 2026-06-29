@@ -1,0 +1,122 @@
+/* GermaniaApp — mobile-first, old-browser-safe styles (no CSS nesting/vars-heavy) */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1a1a1a;
+  background: #f4f5f7;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.appbar {
+  background: #1d3a5f;
+  color: #fff;
+  padding: 12px 16px;
+  font-size: 18px;
+  position: sticky;
+  top: 0;
+}
+main { padding: 12px; max-width: 720px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 8px 0 16px; }
+h2 { font-size: 17px; margin: 0 0 12px; }
+
+.card {
+  background: #fff;
+  border: 1px solid #e2e4e8;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.field { display: block; margin-bottom: 12px; }
+.field-label { display: block; font-size: 13px; color: #5a5f6a; margin-bottom: 4px; }
+input, select, textarea {
+  width: 100%;
+  padding: 11px 12px;
+  font-size: 16px; /* >=16px stops iOS zoom-on-focus */
+  border: 1px solid #c7ccd4;
+  border-radius: 8px;
+  background: #fff;
+}
+textarea { resize: vertical; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+@media (max-width: 460px) { .grid2 { grid-template-columns: 1fr; } }
+
+.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inline input, .inline select { width: auto; flex: 1 1 140px; }
+
+button {
+  font-size: 16px;
+  padding: 11px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+button.primary { background: #1d3a5f; color: #fff; }
+button.primary:active { background: #16314f; }
+button.link { background: none; border: none; padding: 6px 8px; color: #1d3a5f; }
+button.danger { color: #b22; }
+
+.photo-row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; background: #ddd; }
+
+.list { margin-bottom: 12px; }
+.row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid #eef0f3;
+}
+.muted { color: #888; font-style: italic; }
+.toggle { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.toggle input { width: auto; }
+
+.loading { color: #666; }
+.err { color: #b22; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%);
+  background: #1a1a1a; color: #fff; padding: 10px 16px; border-radius: 20px;
+  font-size: 14px; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,.2);
+}
+.toast.err { background: #b22; }
+
+/* screen + bottom nav */
+.screen { padding-bottom: 72px; }
+.bottomnav {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; background: #fff; border-top: 1px solid #e2e4e8; z-index: 40;
+}
+.navitem {
+  flex: 1; background: none; border: none; padding: 12px 4px;
+  font-size: 12px; color: #5a5f6a; border-radius: 0;
+}
+.navitem.active { color: #1d3a5f; font-weight: 600; box-shadow: inset 0 -2px 0 #1d3a5f; }
+
+/* in-screen tabs */
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.tab {
+  background: #eef0f3; border: none; color: #444; padding: 8px 12px;
+  border-radius: 16px; font-size: 13px;
+}
+.tab.active { background: #1d3a5f; color: #fff; }
+
+/* result cards */
+.resultbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.resultbar button { background: #eef0f3; border: none; font-size: 13px; padding: 8px 12px; }
+.member {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  background: #fff; border: 1px solid #e2e4e8; border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 8px;
+}
+.mailbtn { color: #1d3a5f; text-decoration: none; font-size: 14px; white-space: nowrap; }
+.pill {
+  display: inline-block; background: #eef0f3; color: #333;
+  border-radius: 12px; padding: 2px 10px; font-size: 12px; margin: 4px 0;
+}
+.map { height: 60vh; min-height: 320px; border-radius: 10px; overflow: hidden; }
+
+/* auth */
+.authwrap { max-width: 420px; margin: 24px auto; }
+.auth .field, .auth button.primary { margin-top: 12px; }
+details.card summary { cursor: pointer; font-weight: 600; }
+details.card[open] summary { margin-bottom: 12px; }

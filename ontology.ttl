@@ -1,0 +1,171 @@
+# =============================================================================
+# GermaniaApp — OWL ontology (Turtle), v2: REUSE over reinvention
+#
+# Almost everything you need already exists as a standard vocabulary. This file
+# IMPORTS / ALIGNS to those instead of inventing terms, and keeps only a thin
+# "germ:" glue layer for the handful of society-specific bits.
+#
+# Reused standards
+#   FOAF            people                    http://xmlns.com/foaf/0.1/
+#   vCard           contact + postal address  http://www.w3.org/2006/vcard/ns#
+#   ORG (W3C)       membership + roles        http://www.w3.org/ns/org#
+#   Relationship    spouse / parent / child   http://purl.org/vocab/relationship/
+#   schema.org      events, occupation        https://schema.org/
+#   GeoSPARQL       distance queries          http://www.opengis.net/ont/geosparql#
+#   SKOS            occupation taxonomies     http://www.w3.org/2004/02/skos/core#
+#   ESCO / ISCO     precise occupations       http://data.europa.eu/esco/
+#   Wikidata        precise occupations       http://www.wikidata.org/entity/
+#
+# Professions: rather than a homegrown tree, point each profession at an existing
+# concept — e.g. "urologist" = ESCO occupation or Wikidata wd:Q105019 — and let
+# SKOS skos:broader give the taxonomy for free.
+# =============================================================================
+
+@prefix germ:   <https://germania.app/ontology#> .
+@prefix :       <https://germania.app/resource/> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix foaf:   <http://xmlns.com/foaf/0.1/> .
+@prefix vcard:  <http://www.w3.org/2006/vcard/ns#> .
+@prefix org:    <http://www.w3.org/ns/org#> .
+@prefix rel:    <http://purl.org/vocab/relationship/> .
+@prefix schema: <https://schema.org/> .
+@prefix geo:    <http://www.opengis.net/ont/geosparql#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix wd:     <http://www.wikidata.org/entity/> .
+@prefix esco:   <http://data.europa.eu/esco/occupation/> .
+
+<https://germania.app/ontology> a owl:Ontology ;
+    rdfs:label "GermaniaApp society ontology (v2, standards-based)" ;
+    owl:imports <http://www.w3.org/ns/org#> ,
+                <http://purl.org/vocab/relationship/> .
+    # FOAF, vCard, schema.org, GeoSPARQL, SKOS are used by reference (their
+    # namespaces are stable); import them too if your reasoner needs the axioms.
+
+# -----------------------------------------------------------------------------
+# Society-specific glue (only what the standards don't already give us)
+# -----------------------------------------------------------------------------
+germ:Society a owl:Class ; rdfs:subClassOf org:Organization ;
+    rdfs:label "Society" ;
+    rdfs:comment "The association whose members this app describes." .
+
+germ:Member a owl:Class ;
+    rdfs:subClassOf foaf:Person ;
+    rdfs:label "Member" .
+# Membership itself uses org:Membership (member -> org:organization -> Society,
+# with org:role for officer/board/etc.). No custom class needed.
+
+germ:Profession a owl:Class ;
+    rdfs:subClassOf schema:Occupation ;
+    rdfs:label "Profession" ;
+    rdfs:comment "A member's precise occupation; links to an ESCO/Wikidata concept." .
+
+germ:Gathering a owl:Class ;
+    rdfs:subClassOf schema:Event , geo:Feature ;
+    rdfs:label "Gathering" .
+
+# -----------------------------------------------------------------------------
+# Properties — mostly aligned to existing terms
+# -----------------------------------------------------------------------------
+# Family: reuse the Relationship vocabulary directly.
+germ:hasSpouse rdfs:subPropertyOf rel:spouseOf ; a owl:SymmetricProperty .
+germ:hasChild  rdfs:subPropertyOf rel:parentOf .   # member is parent OF child
+
+# Profession link: a member's occupation concept (taxonomy via skos:broader).
+germ:occupation a owl:ObjectProperty ;
+    rdfs:domain germ:Profession ; rdfs:range skos:Concept ;
+    rdfs:comment "ESCO occupation or Wikidata entity, e.g. wd:Q105019 (urologist)." .
+germ:professionTitle a owl:DatatypeProperty ;
+    rdfs:subPropertyOf schema:name ;
+    rdfs:domain germ:Profession ; rdfs:range xsd:string ;
+    rdfs:comment "Free-text precise title as the member typed it." .
+
+# Membership / contact / location all reuse standard terms directly:
+#   org:memberOf, org:hasMembership, org:role   — society membership & officer roles
+#   foaf:name, vcard:hasEmail / vcard:email      — identity & contact
+#   vcard:hasAddress + vcard:street-address ...   — postal address
+#   geo:hasGeometry / geo:asWKT                   — point for distance queries
+#   schema:startDate, schema:eventSchedule        — gatherings & recurrence
+
+# -----------------------------------------------------------------------------
+# Worked example individual (shows the standards in use)
+# -----------------------------------------------------------------------------
+:germania a germ:Society ; foaf:name "Germania" .
+
+:member-anna a germ:Member ;
+    foaf:name "Dr. Anna Berger" ;
+    vcard:email "anna.berger@example.org" ;
+    org:memberOf :germania ;
+    germ:hasSpouse :rel-karl ;
+    germ:hasChild  :rel-lena ;
+    schema:hasOccupation :prof-anna ;
+    geo:hasGeometry [ geo:asWKT "POINT(13.3889 52.5170)"^^geo:wktLiteral ] ;
+    vcard:hasAddress [ a vcard:Home ;
+        vcard:street-address "Hauptstrasse 5" ;
+        vcard:postal-code "10115" ;
+        vcard:locality "Berlin" ;
+        vcard:country-name "DE" ] .
+
+:prof-anna a germ:Profession ;
+    germ:professionTitle "Urologist" ;
+    germ:occupation wd:Q105019 .          # urologist (Wikidata)
+
+:rel-karl a foaf:Person ; foaf:name "Karl Berger" .
+:rel-lena a foaf:Person ; foaf:name "Lena Berger" .
+
+# =============================================================================
+# EXAMPLE SPARQL  (now over standard vocabularies)
+# =============================================================================
+#
+# --- Q1. Members within 50 km of a point ------------------------------------
+# PREFIX germ:<https://germania.app/ontology#>
+# PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+# PREFIX geof:<http://www.opengis.net/def/function/geosparql/>
+# PREFIX uom: <http://www.opengis.net/def/uom/OGC/1.0/>
+# PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+# PREFIX vcard:<http://www.w3.org/2006/vcard/ns#>
+# SELECT ?name ?email ?km WHERE {
+#   ?m a germ:Member ; foaf:name ?name ; vcard:email ?email ;
+#      geo:hasGeometry/geo:asWKT ?wkt .
+#   BIND( geof:distance(?wkt, "POINT(13.405 52.52)"^^geo:wktLiteral, uom:metre)/1000 AS ?km )
+#   FILTER(?km <= 50)
+# } ORDER BY ?km
+#
+# --- Q2. By profession, taxonomy-aware via SKOS broader ----------------------
+#     (matches urologists AND anyone under the broader "physicians" concept)
+# PREFIX germ:<https://germania.app/ontology#>
+# PREFIX schema:<https://schema.org/>
+# PREFIX skos:<http://www.w3.org/2004/02/skos/core#>
+# PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+# SELECT ?name ?title WHERE {
+#   ?m a germ:Member ; foaf:name ?name ; schema:hasOccupation ?p .
+#   ?p germ:professionTitle ?title ; germ:occupation ?occ .
+#   ?occ skos:broader* ?root .
+#   FILTER(?root = <http://www.wikidata.org/entity/Q39631>)   # physician
+# }
+#
+# --- Q3. Contact-list export (emails + postal) -------------------------------
+# PREFIX germ:<https://germania.app/ontology#>
+# PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+# PREFIX vcard:<http://www.w3.org/2006/vcard/ns#>
+# SELECT ?name ?email ?street ?postcode ?city ?country WHERE {
+#   ?m a germ:Member ; foaf:name ?name ; vcard:email ?email .
+#   OPTIONAL { ?m vcard:hasAddress ?a .
+#     OPTIONAL { ?a vcard:street-address ?street }
+#     OPTIONAL { ?a vcard:postal-code   ?postcode }
+#     OPTIONAL { ?a vcard:locality      ?city }
+#     OPTIONAL { ?a vcard:country-name  ?country } }
+# } ORDER BY ?name
+#
+# --- Q4. Spouses & children of a member --------------------------------------
+# PREFIX rel:<http://purl.org/vocab/relationship/>
+# PREFIX germ:<https://germania.app/ontology#>
+# PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+# SELECT ?kind ?relName WHERE {
+#   { :member-anna germ:hasSpouse ?r BIND("spouse" AS ?kind) }
+#   UNION { :member-anna germ:hasChild ?r BIND("child" AS ?kind) }
+#   ?r foaf:name ?relName .
+# }
+# =============================================================================

@@ -1,0 +1,8 @@
+# Supabase Edge Function settings (CLI reads this).
+# geocode is callable by anyone signed in; send-email requires a valid JWT.
+
+[functions.geocode]
+verify_jwt = true
+
+[functions.send-email]
+verify_jwt = true
