@@ -133,7 +133,7 @@ export async function createMyMember(
     Partial<Pick<Member, 'status' | 'visibility' | 'show_email' | 'show_address' | 'show_family'>>,
 ): Promise<Member> {
   const uid = await getCurrentUserId();
-  if (!uid) throw new Error('Not signed in.');
+  if (!uid) throw new Error('Nicht angemeldet.');
   const res = await supabase
     .from('member')
     .insert({ ...input, auth_user_id: uid, consented: true })
@@ -145,7 +145,7 @@ export async function createMyMember(
 /** Update own profile. RLS guarantees you can only touch your own row. */
 export async function updateMyMember(patch: Partial<Member>): Promise<Member> {
   const uid = await getCurrentUserId();
-  if (!uid) throw new Error('Not signed in.');
+  if (!uid) throw new Error('Nicht angemeldet.');
   const res = await supabase
     .from('member')
     .update(patch)
@@ -157,7 +157,7 @@ export async function updateMyMember(patch: Partial<Member>): Promise<Member> {
 
 export async function uploadMyPhoto(file: File): Promise<string> {
   const uid = await getCurrentUserId();
-  if (!uid) throw new Error('Not signed in.');
+  if (!uid) throw new Error('Nicht angemeldet.');
   const path = `${uid}/${Date.now()}-${file.name}`;
   const up = await supabase.storage.from('member-photos').upload(path, file, { upsert: true });
   if (up.error) throw new Error(up.error.message);
@@ -557,7 +557,7 @@ export async function startCheckout(bookingId: string): Promise<string> {
   });
   if (error) throw new Error(error.message);
   const url = (data as { url?: string } | null)?.url;
-  if (!url) throw new Error('Could not start checkout.');
+  if (!url) throw new Error('Bezahlung konnte nicht gestartet werden.');
   return url;
 }
 

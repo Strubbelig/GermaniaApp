@@ -884,12 +884,12 @@ create policy transfer_read on office_transfer for select to authenticated using
 -- MINIMAL SEED (illustrative — safe to delete)
 -- =============================================================================
 insert into profession_category (name, slug, parent_id) values
-    ('Medicine','medicine', null),
-    ('Law','law', null);
+    ('Medizin','medicine', null),
+    ('Recht','law', null);
 insert into profession_category (name, slug, parent_id)
-    select 'Urology','urology', id from profession_category where slug='medicine';
+    select 'Urologie','urology', id from profession_category where slug='medicine';
 insert into profession_category (name, slug, parent_id)
-    select 'Real estate law','real-estate-law', id from profession_category where slug='law';
+    select 'Immobilienrecht','real-estate-law', id from profession_category where slug='law';
 
 -- =============================================================================
 -- End of schema
