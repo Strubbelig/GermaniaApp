@@ -1,63 +1,112 @@
-# Germania — society member directory
+# Germania — Mitgliederverzeichnis & Vereins-App
 
-A mobile-first PWA (vanilla TypeScript + Vite) backed by Supabase, with a path to
-RDF/OWL + SPARQL. Members maintain their own entry (profession, family, addresses);
-others can search by profession or proximity, view a map, contact by email, export
-contact lists, and see recurring gatherings.
+Eine mobile-first PWA (Vanilla TypeScript + Vite) für die Studentenverbindung
+Germania (gegr. 1816). Backend: Supabase (PostgreSQL), mit Weg zu RDF/OWL + SPARQL.
+Die gesamte Oberfläche ist auf **Deutsch**, im Couleur-Design **Schwarz-Gold-Rot**
+mit eigenem Wappen.
 
-## Prototype on GitHub Pages (no backend needed)
+Läuft auf alten wie neuen Smartphones (iPhone & Android) über den Browser — keine
+App-Store-Installation nötig.
 
-The app ships with **demo mode**: when no Supabase credentials are present it runs
-entirely in the browser on 10 sample members — perfect for a live preview.
+## Funktionen
 
-1. Create a new GitHub repository and push this folder to the `main` branch.
-2. In the repo: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. The included workflow (`.github/workflows/deploy.yml`) builds and publishes on every
-   push. After it finishes, your prototype is live at
-   `https://<your-username>.github.io/<repo>/`.
+- **Mitglieder** pflegen ihren eigenen Eintrag: Person, Foto, genaue Berufsbezeichnung
+  (z. B. „Urologe“, „auf Immobilienrecht spezialisierter Anwalt“) mit optionaler
+  Kategorie, sowie Ehepartner und Kinder — jeweils mit eigener Adresse und Geburtsdatum
+  (Alter wird berechnet).
+- **Suche**: nach Beruf, in der Nähe (per Standort + Umkreis) und über eine **Karte**
+  aller Wohnorte. Treffer lassen sich **per E-Mail** kontaktieren oder als **CSV**
+  (Adressen/E-Mails) exportieren — unter Beachtung der Privatsphäre-Einstellungen.
+- **Termine**: weltweite Treffen, auch wiederkehrend (wöchentlich/monatlich), mit Zu-/
+  Absage.
+- **Stocherkahn**: Saison (zu Wasser / aus dem Wasser) wird vom Admin gesetzt; Mitglieder
+  buchen **stundenweise** innerhalb des Dämmerungsfensters (Morgen- bis Abenddämmerung,
+  automatisch aus Sonnenstand berechnet) und zahlen **1 € pro Stunde via Stripe**.
+  Überschneidungen werden verhindert.
+- **Rollen**: `member`, `officer` (Vorstand), `admin`. Admins verwalten Mitglieder und
+  Rollen, Vorstand/Admin verwalten Berufskategorien, Termine und Buchungen. Durchgesetzt
+  per Postgres Row Level Security.
+- **Feedback**: Button in der Kopfzeile für Tester-Rückmeldungen.
 
-That's it — no Supabase, no sign-in, no keys. Changes you make in demo mode reset on
-refresh.
+## Prototyp auf GitHub Pages (ohne Backend)
 
-### Push from the command line
+Die App hat einen **Demo-Modus**: ohne Supabase-Zugangsdaten läuft alles im Browser mit
+10 Beispiel-Mitgliedern — ideal zum Ausprobieren und Teilen. „Anna Berger“ ist Admin.
+
+1. Repository auf GitHub anlegen und diesen Ordner nach `main` pushen.
+2. Im Repo: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. Der Workflow (`.github/workflows/deploy.yml`) baut und veröffentlicht bei jedem Push.
+   Danach ist der Prototyp live unter `https://<dein-name>.github.io/<repo>/`.
+
+Kein Supabase, keine Anmeldung, keine Schlüssel. Änderungen im Demo-Modus werden beim
+Neuladen zurückgesetzt. Der Link ist öffentlich und kann an Tester weitergegeben werden.
+
+> Hinweis: Die **Karte** benötigt Internet (Kartenkacheln werden online geladen), und die
+> **Stocherkahn-Zahlung ist im Demo-Modus simuliert** (keine echte Abbuchung).
+
+### Per Kommandozeile pushen
 
 ```bash
-git init
 git add .
-git commit -m "Germania prototype"
-git branch -M main
-git remote add origin https://github.com/<you>/<repo>.git
-git push -u origin main
+git commit -m "Germania"
+git push
 ```
 
-## Run locally
+(Beim ersten Mal: `git init`, `git branch -M main`, `git remote add origin …`.)
+
+## Lokal starten
+
+Benötigt [Node.js](https://nodejs.org) (LTS). Dann im Projektordner:
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173  (demo mode unless .env is set)
+npm run dev        # http://localhost:5173  (Demo-Modus, sofern keine .env gesetzt)
 ```
 
-## Going live with real data (later)
+## Mit echten Daten (Supabase) live gehen
 
-1. Create a Supabase project; in the SQL editor run, in order:
+1. Supabase-Projekt anlegen; im SQL-Editor nacheinander ausführen:
    `schema.sql` → `supabase/storage.sql` → `supabase/seed.sql`.
-2. Deploy the edge functions (`supabase/functions/`, see its README).
-3. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Settings → API) as build
-   env in the Pages workflow, or to a local `.env` (copy `.env.example`).
-4. In Supabase Auth settings, add your Pages URL to the redirect allow-list, and turn
-   on leaked-password protection / MFA.
+2. Edge Functions deployen (`supabase/functions/`, siehe deren README): `geocode`,
+   `send-email`, `create-checkout`, `stripe-webhook`.
+3. `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` (Settings → API) als Build-Variablen
+   im Pages-Workflow setzen — oder lokal in `.env` (Vorlage: `.env.example`).
+4. In den Supabase-Auth-Einstellungen die Pages-URL zur Redirect-Liste hinzufügen und
+   **Leaked-Password-Schutz / MFA** aktivieren.
+5. Für die €1-Zahlung: Stripe-Konto, `STRIPE_SECRET_KEY` und `STRIPE_WEBHOOK_SECRET`
+   setzen (Details in `supabase/functions/README.md`).
 
-With credentials present the app automatically switches from demo mode to the real
-Supabase backend (sign-in, saving, live data).
+Sobald Zugangsdaten vorhanden sind, schaltet die App automatisch vom Demo-Modus auf das
+echte Supabase-Backend um (Anmeldung, Speichern, gemeinsame Daten, echte Zahlungen).
 
-## Project layout
+> **Sicherheit:** Niemals den `service_role`-Schlüssel oder echte Mitgliederdaten ins
+> Repository committen. Der `anon`-Schlüssel ist für den Browser gedacht und durch RLS
+> geschützt. Für ein privates Repo mit öffentlicher Pages-Seite ist GitHub Pro nötig.
+
+## Projektstruktur
 
 ```
-index.html              app shell
-src/main.ts             entry + router + auth gate
-src/lib/                supabase client, queries, demo data, api facade, ui helpers
-src/screens/            auth, profile, directory (search/map), gatherings
-supabase/               schema.sql, storage.sql, seed.sql, functions/
-ontology.ttl            OWL ontology + SPARQL (RDF phase)
-DATA_MODEL.md           data model docs   ·   ARCHITECTURE.md  system design
+index.html               App-Hülle
+src/main.ts              Einstieg, Router, Auth-Gate, Kopfzeile + Tab-Leiste
+src/lib/
+  supabase.ts            Supabase-Client (tolerant ohne Zugangsdaten)
+  queries.ts             echte Datenzugriffe (Supabase)
+  demo.ts                In-Memory-Demodaten (ohne Backend)
+  api.ts                 Fassade: wählt echt vs. Demo
+  suntimes.ts            Morgen-/Abenddämmerung (Sonnenstand)
+  recurrence.ts          RRULE → nächste Termine
+  crest.ts               Wappen (SVG)
+  ui.ts                  kleine DOM-Helfer
+src/screens/             auth, profile, directory (Suche/Karte), gatherings,
+                         stocherkahn, admin, feedback
+supabase/                schema.sql, storage.sql, seed.sql, functions/, config.toml
+ontology.ttl             OWL-Ontologie + SPARQL (RDF-Phase)
+DATA_MODEL.md            Datenmodell   ·   ARCHITECTURE.md  Systemdesign
 ```
+
+## Technik
+
+Vanilla TypeScript + Vite (kleines Bundle, läuft auf alten Browsern) · Supabase
+(PostgreSQL + PostGIS, Auth, Storage, Edge Functions, Row Level Security) · MapLibre +
+OpenStreetMap für die Karte · Stripe Checkout für die Stocherkahn-Gebühr · PWA
+(installierbar, Offline-Hülle).

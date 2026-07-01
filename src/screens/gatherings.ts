@@ -15,7 +15,7 @@ import { el, field, toast, clear } from '../lib/ui';
 
 export async function mountGatherings(root: HTMLElement): Promise<void> {
   clear(root);
-  const wrap = el('div', { class: 'profile' }, [el('h1', {}, ['Gatherings'])]);
+  const wrap = el('div', { class: 'profile' }, [el('h1', {}, ['Termine'])]);
   root.append(wrap);
 
   const me = await getMyMember().catch(() => null);
@@ -24,11 +24,11 @@ export async function mountGatherings(root: HTMLElement): Promise<void> {
 
   const refresh = async () => {
     clear(list);
-    list.append(el('p', { class: 'loading' }, ['Loading…']));
+    list.append(el('p', { class: 'loading' }, ['Wird geladen…']));
     try {
       const items = await listGatherings({ from: new Date().toISOString() });
       clear(list);
-      if (items.length === 0) list.append(el('p', { class: 'muted' }, ['No upcoming gatherings.']));
+      if (items.length === 0) list.append(el('p', { class: 'muted' }, ['Keine bevorstehenden Termine.']));
       for (const g of items) list.append(renderGathering(g, me?.id ?? null));
     } catch (e) {
       clear(list);
@@ -41,22 +41,22 @@ export async function mountGatherings(root: HTMLElement): Promise<void> {
 function renderGathering(g: Gathering, myId: string | null): HTMLElement {
   const upcoming = nextOccurrences(g.recurrence_rule, g.starts_at, 3);
   const dates = upcoming.length
-    ? upcoming.map((d) => d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })).join(' · ')
-    : new Date(g.starts_at).toLocaleString();
+    ? upcoming.map((d) => d.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })).join(' · ')
+    : new Date(g.starts_at).toLocaleString('de-DE');
 
   const card = el('div', { class: 'card' }, [
     el('h2', {}, [g.title]),
     el('div', { class: 'muted' }, [`${[g.venue_name, g.city, g.country_code].filter(Boolean).join(', ')}`]),
     el('div', { class: 'pill' }, [describeRule(g.recurrence_rule)]),
-    el('div', {}, [`Next: ${dates}`]),
+    el('div', {}, [`Nächste: ${dates}`]),
     g.description ? el('p', {}, [g.description]) : el('span', {}, []),
   ]);
 
   if (myId) {
     const bar = el('div', { class: 'inline' }, [
-      rsvpBtn('Going', 'yes', g.id, myId),
-      rsvpBtn('Maybe', 'maybe', g.id, myId),
-      rsvpBtn("Can't", 'no', g.id, myId),
+      rsvpBtn('Zusage', 'yes', g.id, myId),
+      rsvpBtn('Vielleicht', 'maybe', g.id, myId),
+      rsvpBtn('Absage', 'no', g.id, myId),
     ]);
     card.append(bar);
   }
@@ -68,7 +68,7 @@ function rsvpBtn(label: string, value: Rsvp, gatheringId: string, myId: string):
   b.addEventListener('click', async () => {
     try {
       await rsvpToGathering(gatheringId, myId, value);
-      toast(`RSVP: ${label}`);
+      toast(`Rückmeldung: ${label}`);
     } catch (e) {
       toast((e as Error).message, false);
     }
@@ -77,24 +77,24 @@ function rsvpBtn(label: string, value: Rsvp, gatheringId: string, myId: string):
 }
 
 async function renderCreate(myId: string | null, onCreated: () => void): Promise<HTMLElement> {
-  const card = el('details', { class: 'card' }, [el('summary', {}, ['+ Create a gathering'])]);
+  const card = el('details', { class: 'card' }, [el('summary', {}, ['+ Termin erstellen'])]);
   if (!myId) {
-    card.append(el('p', { class: 'muted' }, ['Sign in to create gatherings.']));
+    card.append(el('p', { class: 'muted' }, ['Zum Erstellen anmelden.']));
     return card;
   }
   const form = el('form', {}, [
-    field('Title', el('input', { name: 'title', required: true })),
+    field('Titel', el('input', { name: 'title', required: true })),
     el('div', { class: 'grid2' }, [
-      field('City', el('input', { name: 'city' })),
-      field('Country (ISO-2)', el('input', { name: 'country_code' })),
-      field('Venue', el('input', { name: 'venue_name' })),
-      field('Starts at', el('input', { name: 'starts_at', type: 'datetime-local', required: true })),
+      field('Stadt', el('input', { name: 'city' })),
+      field('Land (ISO-2)', el('input', { name: 'country_code' })),
+      field('Ort', el('input', { name: 'venue_name' })),
+      field('Beginn', el('input', { name: 'starts_at', type: 'datetime-local', required: true })),
     ]),
-    field('Recurrence (RRULE, optional)', el('input', {
+    field('Wiederholung (RRULE, optional)', el('input', {
       name: 'recurrence_rule', placeholder: 'FREQ=MONTHLY;BYDAY=1FR',
     })),
-    field('Description', el('textarea', { name: 'description', rows: 2 })),
-    el('button', { type: 'submit', class: 'primary' }, ['Create']),
+    field('Beschreibung', el('textarea', { name: 'description', rows: 2 })),
+    el('button', { type: 'submit', class: 'primary' }, ['Erstellen']),
   ]);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -112,7 +112,7 @@ async function renderCreate(myId: string | null, onCreated: () => void): Promise
         host_member_id: myId,
       });
       form.reset();
-      toast('Gathering created');
+      toast('Termin erstellt');
       onCreated();
     } catch (err) {
       toast((err as Error).message, false);

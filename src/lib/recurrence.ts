@@ -83,18 +83,18 @@ export function nextOccurrences(
   return start >= from ? [start] : [];
 }
 
-/** Human-readable recurrence, e.g. "Weekly on Wed". */
+/** Lesbare Wiederholung, z. B. "Wöchentlich · Mi". */
 export function describeRule(rule: string | null): string {
-  if (!rule) return 'One-off';
+  if (!rule) return 'Einmalig';
   const r = parse(rule);
   const names: Record<string, string> = {
-    SU: 'Sun', MO: 'Mon', TU: 'Tue', WE: 'Wed', TH: 'Thu', FR: 'Fri', SA: 'Sat',
+    SU: 'So', MO: 'Mo', TU: 'Di', WE: 'Mi', TH: 'Do', FR: 'Fr', SA: 'Sa',
   };
   const days = (r.BYDAY ?? '').split(',').filter(Boolean)
     .map((t) => names[t.replace(/[-0-9]/g, '')] ?? t).join(', ');
-  const every = r.INTERVAL && r.INTERVAL !== '1' ? `every ${r.INTERVAL} ` : '';
-  if (r.FREQ === 'WEEKLY') return `Weekly${days ? ' on ' + days : ''}`;
-  if (r.FREQ === 'MONTHLY') return `Monthly ${every}${days ? 'on ' + days : ''}`.trim();
-  if (r.FREQ === 'DAILY') return `Daily ${every}`.trim();
+  const every = r.INTERVAL && r.INTERVAL !== '1' ? `alle ${r.INTERVAL} ` : '';
+  if (r.FREQ === 'WEEKLY') return `Wöchentlich${days ? ' · ' + days : ''}`;
+  if (r.FREQ === 'MONTHLY') return `Monatlich ${every}${days ? '· ' + days : ''}`.trim();
+  if (r.FREQ === 'DAILY') return `Täglich ${every}`.trim();
   return rule;
 }

@@ -64,14 +64,14 @@ function toast(msg: string, ok = true): void {
 // =============================================================================
 export async function mountProfileEditor(root: HTMLElement): Promise<void> {
   root.innerHTML = '';
-  root.append(el('p', { class: 'loading' }, ['Loading your profile…']));
+  root.append(el('p', { class: 'loading' }, ['Profil wird geladen…']));
 
   let member: Member | null = null;
   try {
     member = await getMyMember();
   } catch (e) {
     root.innerHTML = '';
-    root.append(el('p', { class: 'err' }, [`Could not load profile: ${(e as Error).message}`]));
+    root.append(el('p', { class: 'err' }, [`Profil konnte nicht geladen werden: ${(e as Error).message}`]));
     return;
   }
 
@@ -86,7 +86,7 @@ export async function mountProfileEditor(root: HTMLElement): Promise<void> {
   root.innerHTML = '';
   root.append(
     el('div', { class: 'profile' }, [
-      el('h1', {}, ['Edit my profile']),
+      el('h1', {}, ['Mein Profil bearbeiten']),
       renderPersonal(member),
       renderPrivacy(member),
       await renderProfessions(member.id, categories),
@@ -99,12 +99,12 @@ export async function mountProfileEditor(root: HTMLElement): Promise<void> {
 // --- first run ---------------------------------------------------------------
 function renderFirstRun(root: HTMLElement): HTMLElement {
   const form = el('form', { class: 'card' }, [
-    el('h1', {}, ['Welcome — create your entry']),
-    field('First name', reqd(input('first_name', ''))),
-    field('Last name', reqd(input('last_name', ''))),
-    field('Email', reqd(input('email', '', 'email'))),
-    field('Date of birth', reqd(input('date_of_birth', '', 'date'))),
-    el('button', { type: 'submit', class: 'primary' }, ['Create profile']),
+    el('h1', {}, ['Willkommen — Eintrag erstellen']),
+    field('Vorname', reqd(input('first_name', ''))),
+    field('Nachname', reqd(input('last_name', ''))),
+    field('E-Mail', reqd(input('email', '', 'email'))),
+    field('Geburtsdatum', reqd(input('date_of_birth', '', 'date'))),
+    el('button', { type: 'submit', class: 'primary' }, ['Profil erstellen']),
   ]);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -118,7 +118,7 @@ function renderFirstRun(root: HTMLElement): HTMLElement {
         salutation: null, maiden_name: null, gender: null,
         phone: null, website: null, photo_url: null, bio: null, member_since: null,
       });
-      toast('Profile created');
+      toast('Profil erstellt');
       await mountProfileEditor(root);
     } catch (err) {
       toast((err as Error).message, false);
@@ -130,23 +130,23 @@ function renderFirstRun(root: HTMLElement): HTMLElement {
 // --- personal ----------------------------------------------------------------
 function renderPersonal(m: Member): HTMLElement {
   const form = el('form', { class: 'card' }, [
-    el('h2', {}, ['Personal details']),
+    el('h2', {}, ['Persönliche Angaben']),
     el('div', { class: 'photo-row' }, [
-      el('img', { class: 'avatar', src: m.photo_url ?? 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22><rect width=%2280%22 height=%2280%22 fill=%22%23ddd%22/></svg>', alt: 'Photo' }),
-      field('Change photo', input('photo', null, 'file')),
+      el('img', { class: 'avatar', src: m.photo_url ?? 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22><rect width=%2280%22 height=%2280%22 fill=%22%23ddd%22/></svg>', alt: 'Foto' }),
+      field('Foto ändern', input('photo', null, 'file')),
     ]),
     el('div', { class: 'grid2' }, [
-      field('Salutation', input('salutation', m.salutation)),
-      field('Maiden name', input('maiden_name', m.maiden_name)),
-      field('First name', input('first_name', m.first_name)),
-      field('Last name', input('last_name', m.last_name)),
-      field('Email', input('email', m.email, 'email')),
-      field('Phone', input('phone', m.phone, 'tel')),
+      field('Anrede', input('salutation', m.salutation)),
+      field('Geburtsname', input('maiden_name', m.maiden_name)),
+      field('Vorname', input('first_name', m.first_name)),
+      field('Nachname', input('last_name', m.last_name)),
+      field('E-Mail', input('email', m.email, 'email')),
+      field('Telefon', input('phone', m.phone, 'tel')),
       field('Website', input('website', m.website, 'url')),
-      field('Date of birth (required)', reqd(input('date_of_birth', m.date_of_birth, 'date'))),
+      field('Geburtsdatum (Pflicht)', reqd(input('date_of_birth', m.date_of_birth, 'date'))),
     ]),
-    field('Bio', el('textarea', { name: 'bio', rows: 3 }, [m.bio ?? ''])),
-    el('button', { type: 'submit', class: 'primary' }, ['Save details']),
+    field('Über mich', el('textarea', { name: 'bio', rows: 3 }, [m.bio ?? ''])),
+    el('button', { type: 'submit', class: 'primary' }, ['Angaben speichern']),
   ]);
 
   $(form, 'input[name=photo]').addEventListener('change', async (e) => {
@@ -155,7 +155,7 @@ function renderPersonal(m: Member): HTMLElement {
     try {
       const url = await uploadMyPhoto(file);
       ($(form, 'img.avatar') as HTMLImageElement).src = url;
-      toast('Photo updated');
+      toast('Foto aktualisiert');
     } catch (err) {
       toast((err as Error).message, false);
     }
@@ -176,7 +176,7 @@ function renderPersonal(m: Member): HTMLElement {
         date_of_birth: str(f, 'date_of_birth'),
         bio: str(f, 'bio'),
       });
-      toast('Saved');
+      toast('Gespeichert');
     } catch (err) {
       toast((err as Error).message, false);
     }
@@ -187,17 +187,17 @@ function renderPersonal(m: Member): HTMLElement {
 // --- privacy -----------------------------------------------------------------
 function renderPrivacy(m: Member): HTMLElement {
   const sel = el('select', { name: 'visibility' }, [
-    opt('members', 'Visible to members', m.visibility),
-    opt('officers', 'Officers only', m.visibility),
-    opt('private', 'Private', m.visibility),
+    opt('members', 'Für Mitglieder sichtbar', m.visibility),
+    opt('officers', 'Nur Vorstand', m.visibility),
+    opt('private', 'Privat', m.visibility),
   ]);
   const form = el('form', { class: 'card' }, [
-    el('h2', {}, ['Privacy']),
-    field('Profile visibility', sel),
-    toggle('show_email', 'Show my email to other members', m.show_email),
-    toggle('show_address', 'Show my address', m.show_address),
-    toggle('show_family', 'Show my family', m.show_family),
-    el('button', { type: 'submit', class: 'primary' }, ['Save privacy']),
+    el('h2', {}, ['Privatsphäre']),
+    field('Sichtbarkeit des Profils', sel),
+    toggle('show_email', 'Meine E-Mail für Mitglieder zeigen', m.show_email),
+    toggle('show_address', 'Meine Adresse zeigen', m.show_address),
+    toggle('show_family', 'Meine Familie zeigen', m.show_family),
+    el('button', { type: 'submit', class: 'primary' }, ['Privatsphäre speichern']),
   ]);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -209,7 +209,7 @@ function renderPrivacy(m: Member): HTMLElement {
         show_address: f.get('show_address') === 'on',
         show_family: f.get('show_family') === 'on',
       });
-      toast('Privacy saved');
+      toast('Privatsphäre gespeichert');
     } catch (err) {
       toast((err as Error).message, false);
     }
@@ -219,22 +219,22 @@ function renderPrivacy(m: Member): HTMLElement {
 
 // --- professions -------------------------------------------------------------
 async function renderProfessions(memberId: string, categories: ProfessionCategory[]): Promise<HTMLElement> {
-  const card = el('div', { class: 'card' }, [el('h2', {}, ['Professions'])]);
+  const card = el('div', { class: 'card' }, [el('h2', {}, ['Berufe'])]);
   const list = el('div', { class: 'list' });
   card.append(list);
 
   const refresh = async () => {
     list.innerHTML = '';
     const items = await listMyProfessions(memberId);
-    if (items.length === 0) list.append(el('p', { class: 'muted' }, ['No professions yet.']));
+    if (items.length === 0) list.append(el('p', { class: 'muted' }, ['Noch keine Berufe.']));
     for (const p of items) {
       const row = el('div', { class: 'row' }, [
         el('span', {}, [p.title + (p.organization ? ` — ${p.organization}` : '')]),
-        el('button', { class: 'link danger', type: 'button' }, ['Remove']),
+        el('button', { class: 'link danger', type: 'button' }, ['Entfernen']),
       ]);
       $(row, 'button').addEventListener('click', async () => {
         await deleteMyProfession(p.id);
-        toast('Removed');
+        toast('Entfernt');
         await refresh();
       });
       list.append(row);
@@ -242,17 +242,17 @@ async function renderProfessions(memberId: string, categories: ProfessionCategor
   };
 
   const catSel = el('select', { name: 'category_id' }, [
-    el('option', { value: '' }, ['(category, optional)']),
+    el('option', { value: '' }, ['(Kategorie, optional)']),
     ...categories.map((c) => el('option', { value: c.id }, [c.name])),
   ]);
   const form = el('form', { class: 'inline' }, [
     input('title', '', 'text'),
     catSel,
     input('organization', '', 'text'),
-    el('button', { type: 'submit', class: 'primary' }, ['Add']),
+    el('button', { type: 'submit', class: 'primary' }, ['Hinzufügen']),
   ]);
-  $(form, 'input[name=title]').setAttribute('placeholder', 'Precise title, e.g. Urologist');
-  $(form, 'input[name=organization]').setAttribute('placeholder', 'Organization');
+  $(form, 'input[name=title]').setAttribute('placeholder', 'Genaue Bezeichnung, z. B. Urologe');
+  $(form, 'input[name=organization]').setAttribute('placeholder', 'Organisation');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(form);
@@ -266,7 +266,7 @@ async function renderProfessions(memberId: string, categories: ProfessionCategor
         organization: str(f, 'organization'),
       });
       form.reset();
-      toast('Added');
+      toast('Hinzugefügt');
       await refresh();
     } catch (err) {
       toast((err as Error).message, false);
@@ -280,23 +280,23 @@ async function renderProfessions(memberId: string, categories: ProfessionCategor
 
 // --- addresses ---------------------------------------------------------------
 async function renderAddresses(memberId: string): Promise<HTMLElement> {
-  const card = el('div', { class: 'card' }, [el('h2', {}, ['Addresses'])]);
+  const card = el('div', { class: 'card' }, [el('h2', {}, ['Adressen'])]);
   const list = el('div', { class: 'list' });
   card.append(list);
 
   const refresh = async () => {
     list.innerHTML = '';
     const items = await listMyAddresses(memberId);
-    if (items.length === 0) list.append(el('p', { class: 'muted' }, ['No addresses yet.']));
+    if (items.length === 0) list.append(el('p', { class: 'muted' }, ['Noch keine Adressen.']));
     for (const a of items) {
       const text = [a.street, a.postal_code, a.city, a.country_code].filter(Boolean).join(', ');
       const row = el('div', { class: 'row' }, [
-        el('span', {}, [`${a.label}: ${text || '(empty)'}${a.geo ? ' 📍' : ''}`]),
-        el('button', { class: 'link danger', type: 'button' }, ['Remove']),
+        el('span', {}, [`${labelDe(a.label)}: ${text || '(leer)'}${a.geo ? ' 📍' : ''}`]),
+        el('button', { class: 'link danger', type: 'button' }, ['Entfernen']),
       ]);
       $(row, 'button').addEventListener('click', async () => {
         await deleteAddress(a.id);
-        toast('Removed');
+        toast('Entfernt');
         await refresh();
       });
       list.append(row);
@@ -304,22 +304,22 @@ async function renderAddresses(memberId: string): Promise<HTMLElement> {
   };
 
   const form = el('form', { class: 'grid2' }, [
-    field('Street', input('street', '')),
-    field('Postal code', input('postal_code', '')),
-    field('City', input('city', '')),
+    field('Straße', input('street', '')),
+    field('PLZ', input('postal_code', '')),
+    field('Stadt', input('city', '')),
     field('Region', input('region', '')),
-    field('Country (ISO-2)', input('country_code', '')),
-    field('Label', el('select', { name: 'label' }, [
-      opt('home', 'home', 'home'), opt('work', 'work', 'home'),
-      opt('holiday', 'holiday', 'home'), opt('other', 'other', 'home'),
+    field('Land (ISO-2)', input('country_code', '')),
+    field('Art', el('select', { name: 'label' }, [
+      opt('home', 'Zuhause', 'home'), opt('work', 'Arbeit', 'home'),
+      opt('holiday', 'Urlaub', 'home'), opt('other', 'Sonstige', 'home'),
     ])),
   ]);
-  const addBtn = el('button', { type: 'submit', class: 'primary' }, ['Add address (auto-geocoded)']);
+  const addBtn = el('button', { type: 'submit', class: 'primary' }, ['Adresse hinzufügen (auto-geocodiert)']);
   form.append(addBtn);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(form);
-    addBtn.textContent = 'Geocoding…';
+    addBtn.textContent = 'Geocodierung…';
     try {
       await upsertMyAddress({
         member_id: memberId,
@@ -331,12 +331,12 @@ async function renderAddresses(memberId: string): Promise<HTMLElement> {
         country_code: str(f, 'country_code') ?? undefined,
       });
       form.reset();
-      toast('Address added');
+      toast('Adresse hinzugefügt');
       await refresh();
     } catch (err) {
       toast((err as Error).message, false);
     } finally {
-      addBtn.textContent = 'Add address (auto-geocoded)';
+      addBtn.textContent = 'Adresse hinzufügen (auto-geocodiert)';
     }
   });
 
@@ -347,26 +347,26 @@ async function renderAddresses(memberId: string): Promise<HTMLElement> {
 
 // --- family ------------------------------------------------------------------
 async function renderFamily(memberId: string): Promise<HTMLElement> {
-  const card = el('div', { class: 'card' }, [el('h2', {}, ['Family'])]);
+  const card = el('div', { class: 'card' }, [el('h2', {}, ['Familie'])]);
   const list = el('div', { class: 'list' });
   card.append(list);
 
   const refresh = async () => {
     list.innerHTML = '';
     const items = await listMyRelatives(memberId);
-    if (items.length === 0) list.append(el('p', { class: 'muted' }, ['No spouses or children added yet.']));
+    if (items.length === 0) list.append(el('p', { class: 'muted' }, ['Noch keine Partner oder Kinder hinzugefügt.']));
     for (const r of items) {
       const age = r.age ?? ageFromDob(r.date_of_birth);
-      const bits = [`${r.relationship}: ${r.first_name} ${r.last_name ?? ''}`.trim()];
-      if (age != null) bits.push(`age ${age}`);
+      const bits = [`${relDe(r.relationship)}: ${r.first_name} ${r.last_name ?? ''}`.trim()];
+      if (age != null) bits.push(`${age} Jahre`);
       if (r.full_address) bits.push(r.full_address);
       const row = el('div', { class: 'row' }, [
         el('span', {}, [bits.join(' · ')]),
-        el('button', { class: 'link danger', type: 'button' }, ['Remove']),
+        el('button', { class: 'link danger', type: 'button' }, ['Entfernen']),
       ]);
       $(row, 'button').addEventListener('click', async () => {
         await deleteRelative(r.id);
-        toast('Removed');
+        toast('Entfernt');
         await refresh();
       });
       list.append(row);
@@ -375,19 +375,19 @@ async function renderFamily(memberId: string): Promise<HTMLElement> {
 
   const form = el('form', { class: 'card-inner' }, [
     el('div', { class: 'grid2' }, [
-      field('Relationship', el('select', { name: 'relationship' }, [
-        opt('spouse', 'Spouse', 'spouse'), opt('partner', 'Partner', 'spouse'),
-        opt('child', 'Child', 'spouse'), opt('other', 'Other', 'spouse'),
+      field('Beziehung', el('select', { name: 'relationship' }, [
+        opt('spouse', 'Ehepartner', 'spouse'), opt('partner', 'Partner', 'spouse'),
+        opt('child', 'Kind', 'spouse'), opt('other', 'Sonstige', 'spouse'),
       ])),
-      field('Date of birth', input('date_of_birth', '', 'date')),
-      field('First name', input('first_name', '')),
-      field('Last name', input('last_name', '')),
-      field('Street', input('street', '')),
-      field('Postal code', input('postal_code', '')),
-      field('City', input('city', '')),
-      field('Country (ISO-2)', input('country_code', '')),
+      field('Geburtsdatum', input('date_of_birth', '', 'date')),
+      field('Vorname', input('first_name', '')),
+      field('Nachname', input('last_name', '')),
+      field('Straße', input('street', '')),
+      field('PLZ', input('postal_code', '')),
+      field('Stadt', input('city', '')),
+      field('Land (ISO-2)', input('country_code', '')),
     ]),
-    el('button', { type: 'submit', class: 'primary' }, ['Add family member']),
+    el('button', { type: 'submit', class: 'primary' }, ['Familienmitglied hinzufügen']),
   ]);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -407,7 +407,7 @@ async function renderFamily(memberId: string): Promise<HTMLElement> {
         country_code: str(f, 'country_code'),
       });
       form.reset();
-      toast('Added');
+      toast('Hinzugefügt');
       await refresh();
     } catch (err) {
       toast((err as Error).message, false);
@@ -432,4 +432,10 @@ function toggle(name: string, label: string, checked: boolean): HTMLElement {
 function str(f: FormData, key: string): string | null {
   const v = (f.get(key) as string | null)?.trim();
   return v ? v : null;
+}
+function labelDe(label: string): string {
+  return { home: 'Zuhause', work: 'Arbeit', holiday: 'Urlaub', other: 'Sonstige' }[label] ?? label;
+}
+function relDe(rel: string): string {
+  return { spouse: 'Ehepartner', partner: 'Partner', child: 'Kind', other: 'Sonstige' }[rel] ?? rel;
 }

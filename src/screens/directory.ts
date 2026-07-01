@@ -30,13 +30,13 @@ interface Row {
 export async function mountDirectory(root: HTMLElement): Promise<void> {
   clear(root);
   const tabs = el('div', { class: 'tabs' }, [
-    tabBtn('Browse', true),
-    tabBtn('By profession'),
-    tabBtn('Near me'),
-    tabBtn('Map'),
+    tabBtn('Übersicht', true),
+    tabBtn('Nach Beruf'),
+    tabBtn('In meiner Nähe'),
+    tabBtn('Karte'),
   ]);
   const panel = el('div', { class: 'panel' });
-  root.append(el('div', { class: 'profile' }, [el('h1', {}, ['Members']), tabs, panel]));
+  root.append(el('div', { class: 'profile' }, [el('h1', {}, ['Mitglieder']), tabs, panel]));
 
   const buttons = Array.from(tabs.querySelectorAll('button'));
   const select = (i: number) => {
@@ -61,16 +61,16 @@ function renderResults(host: HTMLElement, rows: Row[]): void {
   const box = el('div', { class: 'results' });
 
   const bar = el('div', { class: 'resultbar' }, [
-    el('span', { class: 'muted' }, [`${rows.length} member${rows.length === 1 ? '' : 's'}`]),
+    el('span', { class: 'muted' }, [`${rows.length} Mitglied${rows.length === 1 ? '' : 'er'}`]),
   ]);
   if (rows.length > 0) {
     const emails = rows.map((r) => r.email).filter(Boolean) as string[];
-    const mailBtn = el('button', { type: 'button' }, [`Email all (${emails.length})`]);
+    const mailBtn = el('button', { type: 'button' }, [`Alle per E-Mail (${emails.length})`]);
     mailBtn.addEventListener('click', () => {
-      if (emails.length === 0) return toast('No visible emails to contact', false);
+      if (emails.length === 0) return toast('Keine sichtbaren E-Mails', false);
       location.href = mailtoFor(emails, { group: true, subject: 'Germania' });
     });
-    const csvBtn = el('button', { type: 'button' }, ['Export CSV']);
+    const csvBtn = el('button', { type: 'button' }, ['CSV exportieren']);
     csvBtn.addEventListener('click', async () => {
       try {
         await exportContactsCsv(rows.map((r) => r.id), 'germania-contacts.csv');
@@ -90,8 +90,8 @@ function renderResults(host: HTMLElement, rows: Row[]): void {
     const card = el('div', { class: 'member' }, [
       el('div', {}, [el('strong', {}, [r.name]), el('div', { class: 'muted' }, [meta])]),
       r.email
-        ? el('a', { class: 'mailbtn', href: mailtoFor([r.email]) }, ['Email'])
-        : el('span', { class: 'muted' }, ['email hidden']),
+        ? el('a', { class: 'mailbtn', href: mailtoFor([r.email]) }, ['E-Mail'])
+        : el('span', { class: 'muted' }, ['E-Mail verborgen']),
     ]);
     box.append(card);
   }
@@ -101,7 +101,7 @@ function renderResults(host: HTMLElement, rows: Row[]): void {
 // --- Browse ------------------------------------------------------------------
 async function renderBrowse(panel: HTMLElement): Promise<void> {
   clear(panel);
-  panel.append(el('p', { class: 'loading' }, ['Loading members…']));
+  panel.append(el('p', { class: 'loading' }, ['Mitglieder werden geladen…']));
   try {
     const dir = await getDirectory({ limit: 200 });
     clear(panel);
@@ -115,8 +115,8 @@ async function renderBrowse(panel: HTMLElement): Promise<void> {
 // --- By profession -----------------------------------------------------------
 function renderByProfession(panel: HTMLElement): void {
   clear(panel);
-  const box = el('input', { type: 'search', placeholder: 'e.g. lawyer, urologist, architect' });
-  const form = el('form', { class: 'inline' }, [box, el('button', { type: 'submit' }, ['Search'])]);
+  const box = el('input', { type: 'search', placeholder: 'z. B. Anwalt, Urologe, Architekt' });
+  const form = el('form', { class: 'inline' }, [box, el('button', { type: 'submit' }, ['Suchen'])]);
   panel.append(form);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -136,14 +136,14 @@ function renderNearMe(panel: HTMLElement): void {
   clear(panel);
   const radius = el('input', { type: 'number', value: '50', min: '1' });
   const form = el('form', { class: 'inline' }, [
-    field('Radius (km)', radius),
-    el('button', { type: 'submit' }, ['Find members near me']),
+    field('Umkreis (km)', radius),
+    el('button', { type: 'submit' }, ['Mitglieder in der Nähe finden']),
   ]);
   panel.append(form);
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (!navigator.geolocation) return toast('Geolocation not supported', false);
-    toast('Finding your location…');
+    if (!navigator.geolocation) return toast('Standort wird nicht unterstützt', false);
+    toast('Standort wird ermittelt…');
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
@@ -153,7 +153,7 @@ function renderNearMe(panel: HTMLElement): void {
           toast((err as Error).message, false);
         }
       },
-      () => toast('Could not get your location', false),
+      () => toast('Standort konnte nicht ermittelt werden', false),
     );
   });
 }
@@ -184,7 +184,7 @@ async function renderMap(panel: HTMLElement): Promise<void> {
     if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 40, maxZoom: 8 });
   } catch (e) {
     clear(panel);
-    panel.append(el('p', { class: 'err' }, [`Map failed to load: ${(e as Error).message}`]));
+    panel.append(el('p', { class: 'err' }, [`Karte konnte nicht geladen werden: ${(e as Error).message}`]));
   }
 }
 
@@ -227,7 +227,7 @@ function fromDirectory(d: DirectoryEntry): Row {
   return {
     id: d.id, name: `${d.first_name} ${d.last_name}`, email: d.show_email ? d.email : null,
     profession: d.profession, city: d.city, country: d.country_code,
-    extra: d.age != null ? `age ${d.age}` : undefined,
+    extra: d.age != null ? `${d.age} Jahre` : undefined,
   };
 }
 function fromProfession(p: ProfessionMatch): Row {

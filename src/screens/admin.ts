@@ -18,12 +18,12 @@ import { el, field, toast, clear } from '../lib/ui';
 
 export async function mountAdmin(root: HTMLElement): Promise<void> {
   clear(root);
-  const wrap = el('div', { class: 'profile' }, [el('h1', {}, ['Admin'])]);
+  const wrap = el('div', { class: 'profile' }, [el('h1', {}, ['Verwaltung'])]);
   root.append(wrap);
 
   const role = await getMyRole();
   if (role !== 'admin' && role !== 'officer') {
-    wrap.append(el('p', { class: 'err' }, ['You do not have access to this area.']));
+    wrap.append(el('p', { class: 'err' }, ['Du hast keinen Zugriff auf diesen Bereich.']));
     return;
   }
 
@@ -33,7 +33,7 @@ export async function mountAdmin(root: HTMLElement): Promise<void> {
 
 // --- members (admin only) ----------------------------------------------------
 async function renderMembers(): Promise<HTMLElement> {
-  const card = el('div', { class: 'card' }, [el('h2', {}, ['Members & roles'])]);
+  const card = el('div', { class: 'card' }, [el('h2', {}, ['Mitglieder & Rollen'])]);
   const list = el('div', { class: 'list' });
   card.append(list);
 
@@ -53,17 +53,17 @@ async function renderMembers(): Promise<HTMLElement> {
       sel.addEventListener('change', async () => {
         try {
           await setMemberRole(m.id, sel.value as Role);
-          toast(`${m.first_name} is now ${sel.value}`);
+          toast(`${m.first_name} ist jetzt ${roleDe(sel.value as Role)}`);
         } catch (e) {
           toast((e as Error).message, false);
         }
       });
-      const del = el('button', { class: 'link danger', type: 'button' }, ['Remove']);
+      const del = el('button', { class: 'link danger', type: 'button' }, ['Entfernen']);
       del.addEventListener('click', async () => {
-        if (!confirm(`Remove ${m.first_name} ${m.last_name}? This cannot be undone.`)) return;
+        if (!confirm(`${m.first_name} ${m.last_name} entfernen? Dies kann nicht rückgängig gemacht werden.`)) return;
         try {
           await deleteMember(m.id);
-          toast('Member removed');
+          toast('Mitglied entfernt');
           await refresh();
         } catch (e) {
           toast((e as Error).message, false);
@@ -81,26 +81,29 @@ async function renderMembers(): Promise<HTMLElement> {
   return card;
 }
 
+function roleDe(role: Role): string {
+  return { member: 'Mitglied', officer: 'Vorstand', admin: 'Admin' }[role] ?? role;
+}
 function roleOpt(value: Role, current: Role): HTMLOptionElement {
-  return el('option', { value, ...(value === current ? { selected: true } : {}) }, [value]);
+  return el('option', { value, ...(value === current ? { selected: true } : {}) }, [roleDe(value)]);
 }
 
 // --- profession taxonomy (staff) --------------------------------------------
 async function renderCategories(role: Role): Promise<HTMLElement> {
-  const card = el('div', { class: 'card' }, [el('h2', {}, ['Profession categories'])]);
+  const card = el('div', { class: 'card' }, [el('h2', {}, ['Berufskategorien'])]);
   const list = el('div', { class: 'list' });
   card.append(list);
 
   const refresh = async () => {
     clear(list);
     const cats: ProfessionCategory[] = await listProfessionCategories().catch(() => []);
-    if (cats.length === 0) list.append(el('p', { class: 'muted' }, ['No categories yet.']));
+    if (cats.length === 0) list.append(el('p', { class: 'muted' }, ['Noch keine Kategorien.']));
     for (const c of cats) {
-      const del = el('button', { class: 'link danger', type: 'button' }, ['Remove']);
+      const del = el('button', { class: 'link danger', type: 'button' }, ['Entfernen']);
       del.addEventListener('click', async () => {
         try {
           await deleteProfessionCategory(c.id);
-          toast('Removed');
+          toast('Entfernt');
           await refresh();
         } catch (e) {
           toast((e as Error).message, false);
@@ -112,9 +115,9 @@ async function renderCategories(role: Role): Promise<HTMLElement> {
 
   const form = el('form', { class: 'grid2' }, [
     field('Name', el('input', { name: 'name', required: true })),
-    field('Slug', el('input', { name: 'slug', required: true, placeholder: 'e.g. cardiology' })),
+    field('Kürzel (Slug)', el('input', { name: 'slug', required: true, placeholder: 'z. B. kardiologie' })),
   ]);
-  const btn = el('button', { type: 'submit', class: 'primary' }, ['Add category']);
+  const btn = el('button', { type: 'submit', class: 'primary' }, ['Kategorie hinzufügen']);
   form.append(btn);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -122,7 +125,7 @@ async function renderCategories(role: Role): Promise<HTMLElement> {
     try {
       await addProfessionCategory(String(f.get('name')), String(f.get('slug')).toLowerCase());
       form.reset();
-      toast('Category added');
+      toast('Kategorie hinzugefügt');
       await refresh();
     } catch (err) {
       toast((err as Error).message, false);

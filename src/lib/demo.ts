@@ -5,7 +5,6 @@
 // 10 members as supabase/seed.sql. Edits live only until page refresh.
 // =============================================================================
 import { ageFromDob, toCsv, downloadCsv } from './queries';
-import { civilDawnDusk } from './suntimes';
 import { toast } from './ui';
 import type {
   Member, Address, ProfessionCategory, MemberProfession, Relative, RelativeDetail,
@@ -141,11 +140,11 @@ const wait = <T>(v: T): Promise<T> => Promise.resolve(v);
 // auth — always "signed in" as the demo member
 export const hasSession = () => wait(true);
 export const onAuthChange = (_cb: (s: boolean) => void) => () => {};
-export const signOut = async () => { toast('Demo mode — sign-out is disabled'); };
-export const signInWithMagicLink = async () => { toast('Demo mode — already signed in'); };
-export const signInWithPassword = async () => { toast('Demo mode — already signed in'); };
-export const signUpWithPassword = async () => { toast('Demo mode — already signed in'); };
-export const sendPasswordReset = async () => { toast('Demo mode'); };
+export const signOut = async () => { toast('Demo-Modus — Abmelden deaktiviert'); };
+export const signInWithMagicLink = async () => { toast('Demo-Modus — bereits angemeldet'); };
+export const signInWithPassword = async () => { toast('Demo-Modus — bereits angemeldet'); };
+export const signUpWithPassword = async () => { toast('Demo-Modus — bereits angemeldet'); };
+export const sendPasswordReset = async () => { toast('Demo-Modus'); };
 
 // profile
 export const getMyMember = () => wait(members.find((m) => m.id === ME) ?? null);
@@ -272,15 +271,19 @@ export const listBookings = (seasonId: string) =>
   wait(bookings.filter((b) => b.season_id === seasonId && b.status !== 'cancelled'));
 export const listMyBookings = (memberId: string) =>
   wait(bookings.filter((b) => b.member_id === memberId));
-export const createBooking = async (memberId: string, date: string): Promise<StocherkahnBooking> => {
-  if (bookings.some((b) => b.booking_date === date && b.status !== 'cancelled')) {
-    throw new Error('That day is already booked.');
-  }
-  const { dawn, dusk } = civilDawnDusk(date, season.latitude, season.longitude);
+export const createBooking = async (
+  memberId: string, date: string, startsAt: Date | string, endsAt: Date | string,
+): Promise<StocherkahnBooking> => {
+  const s = new Date(startsAt), e = new Date(endsAt);
+  const overlap = bookings.some(
+    (b) => b.status !== 'cancelled' && +new Date(b.starts_at) < +e && +s < +new Date(b.ends_at),
+  );
+  if (overlap) throw new Error('Dieser Zeitraum ist bereits belegt.');
+  const hours = Math.max(1, Math.round((+e - +s) / 3_600_000));
   const b: StocherkahnBooking = {
     id: uid(), season_id: season.id, member_id: memberId, booking_date: date,
-    starts_at: (dawn ?? new Date(date)).toISOString(), ends_at: (dusk ?? new Date(date)).toISOString(),
-    status: 'pending', fee_cents: 100, currency: 'eur', payment_status: 'unpaid',
+    starts_at: s.toISOString(), ends_at: e.toISOString(),
+    status: 'pending', fee_cents: hours * 100, currency: 'eur', payment_status: 'unpaid',
     stripe_session_id: null, stripe_payment_intent_id: null, created_at: now, updated_at: now,
   };
   bookings.push(b); return b;
@@ -289,7 +292,7 @@ export const startCheckout = async (bookingId: string): Promise<string> => {
   // Demo: no real Stripe — simulate a successful €1 payment.
   const b = bookings.find((x) => x.id === bookingId);
   if (b) { b.payment_status = 'paid'; b.status = 'confirmed'; }
-  toast('Paid €1 (demo — no real charge)');
+  toast('Demo: 1 € bezahlt (keine echte Zahlung)');
   return location.href;
 };
 export const cancelBooking = async (id: string) => {

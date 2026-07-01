@@ -1,8 +1,8 @@
 // =============================================================================
-// GermaniaApp — Stocherkahn (society punt boat) booking (vanilla TS)
-// Shows the season, lets a member book one day (dawn→dusk, auto-computed) and
-// pay the €1 fee via Stripe, lists their bookings, and lets admins set the
-// season dates + location.
+// GermaniaApp — Stocherkahn (Vereinsboot) — stundenweise Buchung
+// Mitglieder buchen den Kahn stundenweise innerhalb des Dämmerungsfensters
+// (Morgen- bis Abenddämmerung) und zahlen 1 € pro Stunde via Stripe. Admins
+// legen Saison (zu Wasser / aus dem Wasser) und Standort fest.
 // =============================================================================
 import {
   getActiveSeason,
@@ -20,8 +20,10 @@ import { el, field, toast, clear } from '../lib/ui';
 
 const TZ = 'Europe/Berlin';
 const hhmm = (iso: string | Date) =>
-  new Date(iso).toLocaleTimeString([], { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-const day = (d: string) => new Date(d).toLocaleDateString([], { dateStyle: 'medium' });
+  new Date(iso).toLocaleTimeString('de-DE', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+const tag = (d: string) => new Date(d).toLocaleDateString('de-DE', { dateStyle: 'medium' });
+const ceilHour = (d: Date) => new Date(Math.ceil(d.getTime() / 3_600_000) * 3_600_000);
+const floorHour = (d: Date) => new Date(Math.floor(d.getTime() / 3_600_000) * 3_600_000);
 
 export async function mountStocherkahn(root: HTMLElement): Promise<void> {
   clear(root);
@@ -32,13 +34,13 @@ export async function mountStocherkahn(root: HTMLElement): Promise<void> {
   const season = await getActiveSeason().catch(() => null);
 
   if (!season) {
-    wrap.append(el('p', { class: 'muted' }, ['The boat is not currently in the water (no active season).']));
+    wrap.append(el('p', { class: 'muted' }, ['Der Stocherkahn ist derzeit nicht im Wasser (keine aktive Saison).']));
   } else {
     wrap.append(
       el('div', { class: 'card' }, [
-        el('h2', {}, [season.name ?? 'Season']),
-        el('div', {}, [`In the water ${day(season.water_date)} → ${day(season.withdraw_date)}`]),
-        el('div', { class: 'muted' }, [`Bookings run dawn→dusk · €1 reservation fee`]),
+        el('h2', {}, [season.name ?? 'Saison']),
+        el('div', {}, [`Im Wasser ${tag(season.water_date)} – ${tag(season.withdraw_date)}`]),
+        el('div', { class: 'muted' }, ['Stundenweise buchbar · 1 € pro Stunde']),
       ]),
     );
   }
@@ -50,71 +52,110 @@ export async function mountStocherkahn(root: HTMLElement): Promise<void> {
   }
 }
 
-// --- booking form ------------------------------------------------------------
+// --- Buchungsformular --------------------------------------------------------
 async function renderBookingForm(
   season: StocherkahnSeason, me: Member, onChange: () => void,
 ): Promise<HTMLElement> {
-  const taken = new Set((await listBookings(season.id)).map((b) => b.booking_date));
+  const allBookings = await listBookings(season.id);
 
-  const card = el('div', { class: 'card' }, [el('h2', {}, ['Book a day'])]);
-  const dateInput = el('input', {
-    type: 'date', min: season.water_date, max: season.withdraw_date,
-  });
-  const preview = el('div', { class: 'muted' }, ['Pick a date to see the dawn–dusk window.']);
-  const book = el('button', { type: 'button', class: 'primary' }, ['Book & pay €1']);
+  const card = el('div', { class: 'card' }, [el('h2', {}, ['Stunde buchen'])]);
+  const dateInput = el('input', { type: 'date', min: season.water_date, max: season.withdraw_date });
+  const windowLine = el('div', { class: 'muted' }, ['Wähle ein Datum, um das Zeitfenster zu sehen.']);
+  const startSel = el('select', {}, []);
+  const durSel = el('select', {}, []);
+  const feeLine = el('div', { class: 'pill' }, ['Gebühr: –']);
+  const bookedLine = el('div', { class: 'muted' }, []);
+  const book = el('button', { type: 'button', class: 'primary' }, ['Buchen']);
   book.disabled = true;
+
+  let starts: Date[] = []; // candidate start instants (whole hours)
+  let dusk: Date | null = null;
+
+  const updateFee = () => {
+    const hrs = Number(durSel.value || 0);
+    feeLine.textContent = hrs ? `Gebühr: ${hrs} €` : 'Gebühr: –';
+    book.textContent = hrs ? `Buchen & ${hrs} € zahlen` : 'Buchen';
+  };
+
+  const rebuildDurations = () => {
+    clear(durSel);
+    const start = new Date(Number(startSel.value));
+    if (!dusk) return;
+    const maxHours = Math.floor((+dusk - +start) / 3_600_000);
+    for (let h = 1; h <= Math.max(1, maxHours); h++) {
+      durSel.append(el('option', { value: h }, [`${h} Stunde${h > 1 ? 'n' : ''}`]));
+    }
+    updateFee();
+  };
 
   dateInput.addEventListener('change', () => {
     const d = dateInput.value;
+    clear(startSel); clear(durSel); book.disabled = true; updateFee();
     if (!d) return;
-    if (taken.has(d)) {
-      preview.textContent = 'That day is already booked — choose another.';
-      book.disabled = true;
+    const sun = civilDawnDusk(d, season.latitude, season.longitude);
+    if (!sun.dawn || !sun.dusk) {
+      windowLine.textContent = 'An diesem Tag gibt es kein Tageslichtfenster.';
       return;
     }
-    const { dawn, dusk } = civilDawnDusk(d, season.latitude, season.longitude);
-    preview.textContent = dawn && dusk
-      ? `Dawn ${hhmm(dawn)} → dusk ${hhmm(dusk)} (${TZ})`
-      : 'No daylight window for that date.';
-    book.disabled = !(dawn && dusk);
+    dusk = sun.dusk;
+    windowLine.textContent = `Dämmerung ${hhmm(sun.dawn)} bis ${hhmm(sun.dusk)} (Ortszeit)`;
+
+    const first = ceilHour(sun.dawn);
+    const last = floorHour(sun.dusk);
+    starts = [];
+    for (let t = +first; t < +last; t += 3_600_000) starts.push(new Date(t));
+    if (starts.length === 0) { window.textContent += ' — zu kurz zum Buchen.'; return; }
+    for (const s of starts) startSel.append(el('option', { value: +s }, [hhmm(s)]));
+    book.disabled = false;
+    rebuildDurations();
+
+    const onDay = allBookings.filter((b) => b.booking_date === d);
+    bookedLine.textContent = onDay.length
+      ? 'Bereits belegt: ' + onDay.map((b) => `${hhmm(b.starts_at)}–${hhmm(b.ends_at)}`).join(', ')
+      : '';
   });
+
+  startSel.addEventListener('change', rebuildDurations);
+  durSel.addEventListener('change', updateFee);
 
   book.addEventListener('click', async () => {
     const d = dateInput.value;
-    if (!d) return;
+    const hrs = Number(durSel.value || 0);
+    if (!d || !startSel.value || !hrs) return;
+    const s = new Date(Number(startSel.value));
+    const e = new Date(+s + hrs * 3_600_000);
     book.disabled = true;
-    book.textContent = 'Reserving…';
+    book.textContent = 'Reserviere…';
     try {
-      const booking = await createBooking(me.id, d);
+      const booking = await createBooking(me.id, d, s, e);
       const url = await startCheckout(booking.id);
-      if (url && url !== location.href) {
-        location.href = url; // real Stripe checkout
-        return;
-      }
-      toast('Booked');
+      if (url && url !== location.href) { location.href = url; return; }
+      toast('Gebucht');
       onChange();
-    } catch (e) {
-      toast((e as Error).message, false);
+    } catch (err) {
+      toast((err as Error).message, false);
       book.disabled = false;
-      book.textContent = 'Book & pay €1';
+      updateFee();
     }
   });
 
-  card.append(field('Date', dateInput), preview, book);
-  if (taken.size > 0) {
-    card.append(el('div', { class: 'muted', style: 'margin-top:10px' }, [
-      'Already booked: ' + [...taken].sort().map(day).join(', '),
-    ]));
-  }
+  card.append(
+    field('Datum', dateInput),
+    windowLine,
+    el('div', { class: 'grid2' }, [field('Startzeit', startSel), field('Dauer', durSel)]),
+    feeLine,
+    book,
+    bookedLine,
+  );
   return card;
 }
 
-// --- my bookings -------------------------------------------------------------
+// --- Meine Buchungen ---------------------------------------------------------
 async function renderMyBookings(me: Member, onChange: () => void): Promise<HTMLElement> {
-  const card = el('div', { class: 'card' }, [el('h2', {}, ['My bookings'])]);
+  const card = el('div', { class: 'card' }, [el('h2', {}, ['Meine Buchungen'])]);
   const mine = await listMyBookings(me.id);
   if (mine.length === 0) {
-    card.append(el('p', { class: 'muted' }, ['No bookings yet.']));
+    card.append(el('p', { class: 'muted' }, ['Noch keine Buchungen.']));
     return card;
   }
   for (const b of mine) card.append(renderBookingRow(b, onChange));
@@ -124,15 +165,18 @@ async function renderMyBookings(me: Member, onChange: () => void): Promise<HTMLE
 function renderBookingRow(b: StocherkahnBooking, onChange: () => void): HTMLElement {
   const paid = b.payment_status === 'paid';
   const cancelled = b.status === 'cancelled';
+  const euros = (b.fee_cents / 100).toFixed(0);
+  const statusText = cancelled ? 'storniert' : paid ? 'bezahlt ✓' : 'Zahlung offen';
   const tags = [
-    el('span', { class: 'pill' }, [day(b.booking_date)]),
+    el('span', { class: 'pill' }, [tag(b.booking_date)]),
     el('span', { class: 'pill' }, [`${hhmm(b.starts_at)}–${hhmm(b.ends_at)}`]),
-    el('span', { class: 'pill' }, [cancelled ? 'cancelled' : paid ? 'paid ✓' : 'payment due']),
+    el('span', { class: 'pill' }, [`${euros} €`]),
+    el('span', { class: `pill ${paid ? 'ok' : ''}` }, [statusText]),
   ];
   const row = el('div', { class: 'row' }, [el('div', {}, tags)]);
   if (!cancelled) {
     if (!paid) {
-      const pay = el('button', { type: 'button' }, ['Pay €1']);
+      const pay = el('button', { type: 'button' }, ['Bezahlen']);
       pay.addEventListener('click', async () => {
         try {
           const url = await startCheckout(b.id);
@@ -142,9 +186,9 @@ function renderBookingRow(b: StocherkahnBooking, onChange: () => void): HTMLElem
       });
       row.append(pay);
     }
-    const cancel = el('button', { class: 'link danger', type: 'button' }, ['Cancel']);
+    const cancel = el('button', { class: 'link danger', type: 'button' }, ['Stornieren']);
     cancel.addEventListener('click', async () => {
-      try { await cancelBooking(b.id); toast('Cancelled'); onChange(); }
+      try { await cancelBooking(b.id); toast('Storniert'); onChange(); }
       catch (e) { toast((e as Error).message, false); }
     });
     row.append(cancel);
@@ -152,18 +196,18 @@ function renderBookingRow(b: StocherkahnBooking, onChange: () => void): HTMLElem
   return row;
 }
 
-// --- admin season editor -----------------------------------------------------
+// --- Admin: Saison festlegen -------------------------------------------------
 function renderSeasonEditor(season: StocherkahnSeason | null, onSaved: () => void): HTMLElement {
-  const card = el('details', { class: 'card' }, [el('summary', {}, ['Admin: set season dates & location'])]);
+  const card = el('details', { class: 'card' }, [el('summary', {}, ['Admin: Saison & Standort festlegen'])]);
   const form = el('form', {}, [
     field('Name', el('input', { name: 'name', value: season?.name ?? '' })),
     el('div', { class: 'grid2' }, [
-      field('Watered (start)', el('input', { name: 'water_date', type: 'date', required: true, value: season?.water_date ?? '' })),
-      field('Withdrawn (end)', el('input', { name: 'withdraw_date', type: 'date', required: true, value: season?.withdraw_date ?? '' })),
-      field('Latitude', el('input', { name: 'latitude', type: 'number', step: 'any', value: String(season?.latitude ?? 48.5216) })),
-      field('Longitude', el('input', { name: 'longitude', type: 'number', step: 'any', value: String(season?.longitude ?? 9.0576) })),
+      field('Zu Wasser (Beginn)', el('input', { name: 'water_date', type: 'date', required: true, value: season?.water_date ?? '' })),
+      field('Aus dem Wasser (Ende)', el('input', { name: 'withdraw_date', type: 'date', required: true, value: season?.withdraw_date ?? '' })),
+      field('Breitengrad', el('input', { name: 'latitude', type: 'number', step: 'any', value: String(season?.latitude ?? 48.5216) })),
+      field('Längengrad', el('input', { name: 'longitude', type: 'number', step: 'any', value: String(season?.longitude ?? 9.0576) })),
     ]),
-    el('button', { type: 'submit', class: 'primary' }, ['Save season']),
+    el('button', { type: 'submit', class: 'primary' }, ['Saison speichern']),
   ]);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -176,7 +220,7 @@ function renderSeasonEditor(season: StocherkahnSeason | null, onSaved: () => voi
         latitude: Number(f.get('latitude')),
         longitude: Number(f.get('longitude')),
       });
-      toast('Season saved');
+      toast('Saison gespeichert');
       onSaved();
     } catch (err) {
       toast((err as Error).message, false);

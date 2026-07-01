@@ -14,6 +14,7 @@ import {
   sendPasswordReset,
 } from '../lib/api';
 import { el, qs, field, toast, clear } from '../lib/ui';
+import { crestSvg } from '../lib/crest';
 
 type Mode = 'magic' | 'password';
 
@@ -25,30 +26,30 @@ export function mountAuth(root: HTMLElement): void {
   const render = () => {
     clear(card);
     card.append(
-      el('h1', {}, ['Sign in to Germania']),
+      el('h1', {}, ['Bei Germania anmelden']),
       el('div', { class: 'tabs' }, [
-        modeTab('Magic link', mode === 'magic', () => { mode = 'magic'; render(); }),
-        modeTab('Password', mode === 'password', () => { mode = 'password'; render(); }),
+        modeTab('Magischer Link', mode === 'magic', () => { mode = 'magic'; render(); }),
+        modeTab('Passwort', mode === 'password', () => { mode = 'password'; render(); }),
       ]),
-      field('Email', el('input', { name: 'email', type: 'email', required: true, autocomplete: 'email' })),
+      field('E-Mail', el('input', { name: 'email', type: 'email', required: true, autocomplete: 'email' })),
     );
 
     if (mode === 'password') {
       card.append(
-        field('Password', el('input', {
+        field('Passwort', el('input', {
           name: 'password', type: 'password', required: true,
           minlength: 8, autocomplete: 'current-password',
         })),
-        el('button', { type: 'submit', class: 'primary', 'data-act': 'login' }, ['Sign in']),
+        el('button', { type: 'submit', class: 'primary', 'data-act': 'login' }, ['Anmelden']),
         el('div', { class: 'inline' }, [
-          linkBtn('Create account', 'signup'),
-          linkBtn('Forgot password', 'reset'),
+          linkBtn('Konto erstellen', 'signup'),
+          linkBtn('Passwort vergessen', 'reset'),
         ]),
       );
     } else {
       card.append(
-        el('button', { type: 'submit', class: 'primary', 'data-act': 'magic' }, ['Email me a sign-in link']),
-        el('p', { class: 'muted' }, ['We email you a one-time link — no password needed.']),
+        el('button', { type: 'submit', class: 'primary', 'data-act': 'magic' }, ['Anmeldelink per E-Mail senden']),
+        el('p', { class: 'muted' }, ['Wir senden dir einen einmaligen Link — kein Passwort nötig.']),
       );
     }
   };
@@ -66,27 +67,30 @@ export function mountAuth(root: HTMLElement): void {
   });
 
   render();
-  root.append(el('div', { class: 'profile authwrap' }, [card]));
+  const brand = el('div', { class: 'auth-brand' });
+  brand.innerHTML = `${crestSvg(72)}
+    <div class="auth-brandtext"><strong>Germania</strong><span>gegründet 1816</span></div>`;
+  root.append(el('div', { class: 'profile authwrap' }, [brand, card]));
 }
 
 async function act(action: string, card: HTMLElement): Promise<void> {
   const email = (qs<HTMLInputElement>(card, 'input[name=email]')?.value ?? '').trim();
   const pwEl = card.querySelector<HTMLInputElement>('input[name=password]');
   const password = pwEl?.value ?? '';
-  if (!email) return toast('Enter your email', false);
+  if (!email) return toast('Bitte E-Mail eingeben', false);
   try {
     if (action === 'magic') {
       await signInWithMagicLink(email);
-      toast('Check your email for the sign-in link');
+      toast('Bitte E-Mail für den Anmeldelink prüfen');
     } else if (action === 'login') {
       await signInWithPassword(email, password);
     } else if (action === 'signup') {
-      if (password.length < 8) return toast('Use at least 8 characters', false);
+      if (password.length < 8) return toast('Mindestens 8 Zeichen verwenden', false);
       await signUpWithPassword(email, password);
-      toast('Account created — check your email to confirm');
+      toast('Konto erstellt — bitte E-Mail bestätigen');
     } else if (action === 'reset') {
       await sendPasswordReset(email);
-      toast('Password reset email sent');
+      toast('E-Mail zum Zurücksetzen gesendet');
     }
   } catch (err) {
     toast((err as Error).message, false);

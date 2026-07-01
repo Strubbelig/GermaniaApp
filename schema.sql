@@ -23,6 +23,7 @@
 create extension if not exists "pgcrypto";   -- gen_random_uuid()
 create extension if not exists "postgis";     -- geography type + distance ops
 create extension if not exists "pg_trgm";     -- fuzzy text search on professions
+create extension if not exists "btree_gist";  -- overlap exclusion for hourly bookings
 
 -- -----------------------------------------------------------------------------
 -- Shared updated_at trigger
@@ -441,9 +442,9 @@ create policy attendance_write on gathering_attendance for all to authenticated
 -- =============================================================================
 -- STOCHERKAHN  (the society's punt boat)
 -- A "season" runs from the day the boat is watered (launched) to the day it is
--- withdrawn — set by an admin. Within a season the boat can be booked for a
--- single day at a time, dawn→dusk (times computed from the location's
--- sunrise/sunset). Each booking carries a €1 reservation fee paid via Stripe.
+-- withdrawn — set by an admin. Within a season the boat is booked BY THE HOUR,
+-- only within that date's dawn–dusk window (computed from the location's
+-- sun times). Fee is €1 per hour, paid via Stripe.
 -- =============================================================================
 create table stocherkahn_season (
     id              uuid primary key default gen_random_uuid(),
@@ -469,9 +470,10 @@ create table stocherkahn_booking (
     member_id       uuid not null references member (id) on delete cascade,
 
     booking_date    date not null,
-    -- Dawn (start) and dusk (end) for that date+location, computed by the app.
+    -- The booked HOURLY window (within that date's dawn–dusk), set by the app.
     starts_at       timestamptz not null,
     ends_at         timestamptz not null,
+    check (ends_at > starts_at),
 
     status          text not null default 'pending'
                     check (status in ('pending','confirmed','cancelled')),
@@ -489,9 +491,10 @@ create table stocherkahn_booking (
 );
 create index on stocherkahn_booking (season_id, booking_date);
 create index on stocherkahn_booking (member_id);
--- The boat is a single resource: at most one (non-cancelled) booking per day.
-create unique index uq_booking_day on stocherkahn_booking (booking_date)
-    where status <> 'cancelled';
+-- The boat is a single resource: no two active bookings may overlap in time.
+alter table stocherkahn_booking add constraint no_booking_overlap
+    exclude using gist (tstzrange(starts_at, ends_at) with &&)
+    where (status <> 'cancelled');
 create trigger trg_booking_updated before update on stocherkahn_booking
     for each row execute function set_updated_at();
 

@@ -457,23 +457,43 @@ export async function listMyBookings(memberId: string): Promise<StocherkahnBooki
   return unwrap(res) ?? [];
 }
 
-/** Book the boat for one day; dawn/dusk are computed from the season location. */
-export async function createBooking(memberId: string, date: string): Promise<StocherkahnBooking> {
+/**
+ * Book the boat for an HOURLY window on a given date. The window must lie within
+ * that date's dawn–dusk (computed from the season location). Fee = €1 per hour.
+ * Overlapping bookings are rejected by the database (no_booking_overlap).
+ */
+export async function createBooking(
+  memberId: string,
+  date: string,
+  startsAt: Date | string,
+  endsAt: Date | string,
+): Promise<StocherkahnBooking> {
   const season = await getActiveSeason();
-  if (!season) throw new Error('No active season — the boat is not currently in the water.');
+  if (!season) throw new Error('Der Stocherkahn ist derzeit nicht im Wasser (keine aktive Saison).');
+  const s = new Date(startsAt);
+  const e = new Date(endsAt);
+  if (e <= s) throw new Error('Die Endzeit muss nach der Startzeit liegen.');
   const { dawn, dusk } = civilDawnDusk(date, season.latitude, season.longitude);
-  if (!dawn || !dusk) throw new Error('No daylight window for that date.');
+  if (!dawn || !dusk) throw new Error('An diesem Tag gibt es kein Tageslichtfenster.');
+  if (s < dawn || e > dusk) {
+    throw new Error('Die Buchung muss zwischen Morgen- und Abenddämmerung liegen.');
+  }
+  const hours = Math.max(1, Math.round((+e - +s) / 3_600_000));
   const res = await supabase
     .from('stocherkahn_booking')
     .insert({
       season_id: season.id,
       member_id: memberId,
       booking_date: date,
-      starts_at: dawn.toISOString(),
-      ends_at: dusk.toISOString(),
+      starts_at: s.toISOString(),
+      ends_at: e.toISOString(),
+      fee_cents: hours * 100,
     })
     .select('*')
     .single();
+  if (res.error && /overlap|exclu/i.test(res.error.message)) {
+    throw new Error('Dieser Zeitraum ist bereits belegt.');
+  }
   return unwrap(res);
 }
 
