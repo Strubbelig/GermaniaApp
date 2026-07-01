@@ -25,6 +25,7 @@ import type {
   Role,
   StocherkahnSeason,
   StocherkahnBooking,
+  StocherkahnScheduleEntry,
   Office,
   OfficeTransfer,
   OfficeHistory,
@@ -57,6 +58,17 @@ export async function signInWithMagicLink(email: string): Promise<void> {
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: appUrl() },
+  });
+  if (error) throw new Error(error.message);
+}
+
+export type OAuthProvider = 'google' | 'apple' | 'linkedin_oidc';
+
+/** Sign in via a social provider (Google / Apple / LinkedIn). Redirects away. */
+export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: appUrl() },
   });
   if (error) throw new Error(error.message);
 }
@@ -442,6 +454,15 @@ export async function createGathering(
   return unwrap(res);
 }
 
+/** The signed-in member's RSVPs, to highlight the chosen buttons. */
+export async function listMyRsvps(memberId: string): Promise<{ gathering_id: string; rsvp: Rsvp }[]> {
+  const res = await supabase
+    .from('gathering_attendance')
+    .select('gathering_id, rsvp')
+    .eq('member_id', memberId);
+  return unwrap(res) ?? [];
+}
+
 export async function rsvpToGathering(
   gatheringId: string,
   memberId: string,
@@ -534,7 +555,6 @@ export async function createBooking(
   if (s < dawn || e > dusk) {
     throw new Error('Die Buchung muss zwischen Morgen- und Abenddämmerung liegen.');
   }
-  const hours = Math.max(1, Math.round((+e - +s) / 3_600_000));
   const res = await supabase
     .from('stocherkahn_booking')
     .insert({
@@ -543,7 +563,8 @@ export async function createBooking(
       booking_date: date,
       starts_at: s.toISOString(),
       ends_at: e.toISOString(),
-      fee_cents: hours * 100,
+      status: 'confirmed',   // free booking — no payment step
+      fee_cents: 0,
     })
     .select('*')
     .single();
@@ -553,7 +574,17 @@ export async function createBooking(
   return unwrap(res);
 }
 
-/** Start Stripe checkout for a booking's €1 fee; returns the URL to redirect to. */
+/** The boat schedule for a day (who has it, when, how long). */
+export async function listSchedule(date: string): Promise<StocherkahnScheduleEntry[]> {
+  const res = await supabase
+    .from('stocherkahn_schedule')
+    .select('*')
+    .eq('booking_date', date)
+    .order('starts_at');
+  return unwrap(res) ?? [];
+}
+
+/** (Unused — payment was dropped.) Start Stripe checkout; kept for later. */
 export async function startCheckout(bookingId: string): Promise<string> {
   const { data, error } = await supabase.functions.invoke('create-checkout', {
     body: { booking_id: bookingId, success_url: location.href, cancel_url: location.href },

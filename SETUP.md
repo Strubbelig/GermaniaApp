@@ -110,6 +110,30 @@ supabase secrets set RESEND_API_KEY=re_xxx MAIL_FROM="Germania <noreply@yourdoma
 
 ---
 
+## Part E — Social login (Google, Apple, LinkedIn) (optional)
+
+The app shows "Mit Google / Apple / LinkedIn anmelden" buttons. Each provider must
+be enabled in Supabase with credentials you create in that provider's developer
+console. In every provider, set the **callback/redirect URL** to Supabase's:
+
+```
+https://<your-project-ref>.supabase.co/auth/v1/callback
+```
+
+Then in Supabase → **Authentication → Providers**, enable each and paste its keys:
+
+- **Google** 🧑 — Google Cloud Console → APIs & Services → Credentials → OAuth client
+  (type "Web"). Copy Client ID + Secret into Supabase's Google provider. Easiest one.
+- **LinkedIn** 🧑 — LinkedIn Developers → create an app → enable "Sign In with LinkedIn
+  using OpenID Connect" → Client ID + Secret into Supabase's **LinkedIn (OIDC)** provider.
+- **Apple** 🧑 — needs a paid Apple Developer account: create a Services ID + a Sign in
+  with Apple key, then fill Supabase's Apple provider. The most involved; skip unless you
+  need it.
+
+The app's redirect (`https://strubbelig.github.io/GermaniaApp/`) is already in your
+Supabase Redirect URLs allow-list, so no extra app change is needed. Buttons for
+providers you haven't enabled will simply return an error until you configure them.
+
 ## After going live — housekeeping
 
 - **Make the repo private** if you'll store real member data (needs GitHub Pro for Pages

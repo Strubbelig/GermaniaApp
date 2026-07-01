@@ -345,8 +345,13 @@ select
     (select string_agg(office_abbr(oh.office_code) || ' ' || coalesce(oh.semester, ''), ', '
                        order by oh.semester)
        from office_history oh where oh.member_id = m.id) as charges,
-    mp.title              as profession,
-    pc.name               as profession_category,
+    -- all professions joined (a member may have several); one row per member.
+    (select string_agg(mp.title, ', ' order by mp.is_primary desc, mp.created_at)
+       from member_profession mp where mp.member_id = m.id) as profession,
+    (select pc.name from member_profession mp
+       left join profession_category pc on pc.id = mp.category_id
+       where mp.member_id = m.id
+       order by mp.is_primary desc, mp.created_at limit 1) as profession_category,
     a.street, a.house_number, a.postal_code, a.city, a.region, a.country_code,
     a.geo,
     st_y(a.geo::geometry) as latitude,
@@ -354,10 +359,6 @@ select
 from member m
 left join address a
        on a.member_id = m.id and a.is_primary
-left join member_profession mp
-       on mp.member_id = m.id and mp.is_primary
-left join profession_category pc
-       on pc.id = mp.category_id
 where m.consented;   -- only opted-in members appear in the directory / map
 
 -- 6a-ii. Deceased members (memorial). Shown regardless of consent — this is
@@ -368,9 +369,9 @@ select
     m.date_of_birth, m.date_of_death, m.photo_url, m.trivia,
     extract(year from m.date_of_birth)::int as birth_year,
     extract(year from m.date_of_death)::int as death_year,
-    mp.title as profession
+    (select string_agg(mp.title, ', ' order by mp.is_primary desc, mp.created_at)
+       from member_profession mp where mp.member_id = m.id) as profession
 from member m
-left join member_profession mp on mp.member_id = m.id and mp.is_primary
 where m.status = 'deceased';
 
 -- 6a-bis. Relatives with derived age (one row per spouse/child).
@@ -404,7 +405,8 @@ returns table (
         m.id,
         m.first_name || ' ' || m.last_name,
         m.email,
-        mp.title,
+        (select string_agg(mp.title, ', ' order by mp.is_primary desc, mp.created_at)
+           from member_profession mp where mp.member_id = m.id),
         a.city,
         a.country_code,
         round((st_distance(
@@ -413,7 +415,6 @@ returns table (
         ) / 1000.0)::numeric, 2)::double precision
     from member m
     join address a on a.member_id = m.id and a.is_primary
-    left join member_profession mp on mp.member_id = m.id and mp.is_primary
     where st_dwithin(
             a.geo,
             st_setsrid(st_makepoint(lon, lat), 4326)::geography,
@@ -613,6 +614,14 @@ create policy booking_insert on stocherkahn_booking for insert to authenticated
 create policy booking_update on stocherkahn_booking for update to authenticated
     using (member_id = current_member_id())
     with check (member_id = current_member_id());
+
+-- Schedule view: who has the boat, when, for how long (with member name).
+create or replace view stocherkahn_schedule as
+select b.id, b.season_id, b.booking_date, b.starts_at, b.ends_at, b.status,
+       b.member_id, (m.first_name || ' ' || m.last_name) as member_name
+from stocherkahn_booking b
+join member m on m.id = b.member_id
+where b.status <> 'cancelled';
 
 -- =============================================================================
 -- GANZEN  ("Ganzen vor!") — social beer-toast gamification
@@ -897,6 +906,20 @@ insert into profession_category (name, slug, parent_id)
     select 'Urologie','urology', id from profession_category where slug='medicine';
 insert into profession_category (name, slug, parent_id)
     select 'Immobilienrecht','real-estate-law', id from profession_category where slug='law';
+
+-- =============================================================================
+-- GRANTS — privileges for the Supabase API roles (anon, authenticated).
+-- Supabase sets these by default, but recreating the public schema drops them,
+-- which causes "permission denied for ..." even when RLS would allow the row.
+-- RLS remains the real gate; these grants only permit the operation *type*.
+-- =============================================================================
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables    in schema public to anon, authenticated, service_role;
+grant all on all routines  in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+alter default privileges in schema public grant all on tables    to anon, authenticated, service_role;
+alter default privileges in schema public grant all on routines  to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 
 -- =============================================================================
 -- End of schema

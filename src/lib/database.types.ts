@@ -316,6 +316,18 @@ export interface Database {
           longitude: number | null;
         };
       };
+      stocherkahn_schedule: {
+        Row: {
+          id: string;
+          season_id: string;
+          booking_date: string;
+          starts_at: string;
+          ends_at: string;
+          status: BookingStatus;
+          member_id: string;
+          member_name: string;
+        };
+      };
       ganze_highscore: {
         Row: { member_id: string; name: string; ganze: number };
       };
@@ -434,6 +446,7 @@ export type Gathering = Database['public']['Tables']['gathering']['Row'];
 export type GatheringAttendance = Database['public']['Tables']['gathering_attendance']['Row'];
 export type StocherkahnSeason = Database['public']['Tables']['stocherkahn_season']['Row'];
 export type StocherkahnBooking = Database['public']['Tables']['stocherkahn_booking']['Row'];
+export type StocherkahnScheduleEntry = Database['public']['Views']['stocherkahn_schedule']['Row'];
 export type OfficeHistory = Database['public']['Tables']['office_history']['Row'];
 export type Ganzen = Database['public']['Tables']['ganzen']['Row'];
 export type GanzeHighscore = Database['public']['Views']['ganze_highscore']['Row'];

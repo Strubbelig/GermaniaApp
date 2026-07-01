@@ -16,6 +16,7 @@ export const hasSession = impl.hasSession;
 export const onAuthChange = impl.onAuthChange;
 export const signOut = impl.signOut;
 export const signInWithMagicLink = impl.signInWithMagicLink;
+export const signInWithOAuth = impl.signInWithOAuth;
 export const signInWithPassword = impl.signInWithPassword;
 export const signUpWithPassword = impl.signUpWithPassword;
 export const sendPasswordReset = impl.sendPasswordReset;
@@ -58,6 +59,7 @@ export const membersNear = impl.membersNear;
 // gatherings
 export const listGatherings = impl.listGatherings;
 export const createGathering = impl.createGathering;
+export const listMyRsvps = impl.listMyRsvps;
 export const rsvpToGathering = impl.rsvpToGathering;
 
 // export
@@ -69,6 +71,7 @@ export const getActiveSeason = impl.getActiveSeason;
 export const saveSeason = impl.saveSeason;
 export const listBookings = impl.listBookings;
 export const listMyBookings = impl.listMyBookings;
+export const listSchedule = impl.listSchedule;
 export const createBooking = impl.createBooking;
 export const startCheckout = impl.startCheckout;
 export const cancelBooking = impl.cancelBooking;

@@ -9,10 +9,12 @@
 // =============================================================================
 import {
   signInWithMagicLink,
+  signInWithOAuth,
   signInWithPassword,
   signUpWithPassword,
   sendPasswordReset,
 } from '../lib/api';
+import type { OAuthProvider } from '../lib/queries';
 import { el, qs, field, toast, clear } from '../lib/ui';
 import { crestSvg } from '../lib/crest';
 
@@ -52,6 +54,7 @@ export function mountAuth(root: HTMLElement): void {
         el('p', { class: 'muted' }, ['Wir senden dir einen einmaligen Link — kein Passwort nötig.']),
       );
     }
+    card.append(oauthBlock());
   };
 
   card.addEventListener('submit', async (e) => {
@@ -95,6 +98,23 @@ async function act(action: string, card: HTMLElement): Promise<void> {
   } catch (err) {
     toast((err as Error).message, false);
   }
+}
+
+function oauthBlock(): HTMLElement {
+  const wrap = el('div', { class: 'oauth' }, [el('div', { class: 'divider' }, ['oder'])]);
+  wrap.append(
+    oauthBtn('Mit Google anmelden', 'google'),
+    oauthBtn('Mit Apple anmelden', 'apple'),
+    oauthBtn('Mit LinkedIn anmelden', 'linkedin_oidc'),
+  );
+  return wrap;
+}
+function oauthBtn(label: string, provider: OAuthProvider): HTMLButtonElement {
+  const b = el('button', { type: 'button', class: 'oauthbtn' }, [label]);
+  b.addEventListener('click', async () => {
+    try { await signInWithOAuth(provider); } catch (e) { toast((e as Error).message, false); }
+  });
+  return b;
 }
 
 function modeTab(label: string, active: boolean, onClick: () => void): HTMLButtonElement {

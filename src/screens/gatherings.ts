@@ -9,6 +9,7 @@
 import {
   listGatherings,
   createGathering,
+  listMyRsvps,
   rsvpToGathering,
   getMyMember,
   isAdmin,
@@ -89,10 +90,14 @@ async function renderCategory(
   panel.append(list);
   list.append(el('p', { class: 'loading' }, ['Wird geladen…']));
   try {
-    const items = await listGatherings({ category, from: new Date().toISOString() });
+    const [items, myRsvps] = await Promise.all([
+      listGatherings({ category, from: new Date().toISOString() }),
+      me ? listMyRsvps(me.id) : Promise.resolve([] as { gathering_id: string; rsvp: Rsvp }[]),
+    ]);
+    const rsvpMap = new Map(myRsvps.map((r) => [r.gathering_id, r.rsvp]));
     clear(list);
     if (items.length === 0) list.append(el('p', { class: 'muted' }, ['Keine bevorstehenden Termine.']));
-    for (const g of items) list.append(renderGathering(g, me?.id ?? null));
+    for (const g of items) list.append(renderGathering(g, me?.id ?? null, rsvpMap.get(g.id) ?? null));
   } catch (e) {
     clear(list);
     list.append(el('p', { class: 'err' }, [(e as Error).message]));
@@ -100,7 +105,7 @@ async function renderCategory(
 }
 
 // --- one event ---------------------------------------------------------------
-function renderGathering(g: Gathering, myId: string | null): HTMLElement {
+function renderGathering(g: Gathering, myId: string | null, currentRsvp: Rsvp | null): HTMLElement {
   const place = [g.venue_name, g.street, g.city, g.country_code].filter(Boolean).join(', ');
   const card = el('div', { class: 'card' }, [el('h2', {}, [g.title])]);
   if (place) card.append(el('div', { class: 'muted' }, [place]));
@@ -119,23 +124,34 @@ function renderGathering(g: Gathering, myId: string | null): HTMLElement {
   }
   if (g.description) card.append(el('p', {}, [g.description]));
 
-  if (myId) {
-    card.append(el('div', { class: 'inline' }, [
-      rsvpBtn('Zusage', 'yes', g.id, myId),
-      rsvpBtn('Vielleicht', 'maybe', g.id, myId),
-      rsvpBtn('Absage', 'no', g.id, myId),
-    ]));
-  }
+  if (myId) card.append(renderRsvp(g.id, myId, currentRsvp));
   return card;
 }
 
-function rsvpBtn(label: string, value: Rsvp, gatheringId: string, myId: string): HTMLButtonElement {
-  const b = el('button', { type: 'button' }, [label]);
-  b.addEventListener('click', async () => {
-    try { await rsvpToGathering(gatheringId, myId, value); toast(`Rückmeldung: ${label}`); }
-    catch (e) { toast((e as Error).message, false); }
+// RSVP bar — the chosen answer is highlighted (green = Zusage, amber = Vielleicht,
+// red = Absage).
+function renderRsvp(gatheringId: string, myId: string, current: Rsvp | null): HTMLElement {
+  const bar = el('div', { class: 'inline rsvpbar' });
+  const defs: [string, Rsvp][] = [['Zusage', 'yes'], ['Vielleicht', 'maybe'], ['Absage', 'no']];
+  const btns = defs.map(([label, value]) => {
+    const b = el('button', {
+      type: 'button',
+      class: `rsvp rsvp-${value} ${current === value ? 'active' : ''}`,
+    }, [label]);
+    b.addEventListener('click', async () => {
+      try {
+        await rsvpToGathering(gatheringId, myId, value);
+        btns.forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        toast(`Rückmeldung: ${label}`);
+      } catch (e) {
+        toast((e as Error).message, false);
+      }
+    });
+    return b;
   });
-  return b;
+  bar.append(...btns);
+  return bar;
 }
 
 // --- create (staff only) -----------------------------------------------------

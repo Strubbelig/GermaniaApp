@@ -1,16 +1,15 @@
 // =============================================================================
-// GermaniaApp — Stocherkahn (Vereinsboot) — stundenweise Buchung
-// Mitglieder buchen den Kahn stundenweise innerhalb des Dämmerungsfensters
-// (Morgen- bis Abenddämmerung) und zahlen 1 € pro Stunde via Stripe. Admins
-// legen Saison (zu Wasser / aus dem Wasser) und Standort fest.
+// GermaniaApp — Stocherkahn (Vereinsboot) — stundenweise Buchung (kostenlos)
+// Buchung dawn→dusk-Fenster, ohne Bezahlung. Eine browsebare Belegung zeigt
+// visuell, wer den Kahn wann und wie lange hat. Admins legen die Saison fest.
 // =============================================================================
 import {
   getActiveSeason,
   saveSeason,
   listBookings,
   listMyBookings,
+  listSchedule,
   createBooking,
-  startCheckout,
   cancelBooking,
   getMyMember,
 } from '../lib/api';
@@ -21,9 +20,10 @@ import { el, field, toast, clear } from '../lib/ui';
 const TZ = 'Europe/Berlin';
 const hhmm = (iso: string | Date) =>
   new Date(iso).toLocaleTimeString('de-DE', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-const tag = (d: string) => new Date(d).toLocaleDateString('de-DE', { dateStyle: 'medium' });
+const tag = (d: string | Date) => new Date(d).toLocaleDateString('de-DE', { dateStyle: 'medium' });
 const ceilHour = (d: Date) => new Date(Math.ceil(d.getTime() / 3_600_000) * 3_600_000);
 const floorHour = (d: Date) => new Date(Math.floor(d.getTime() / 3_600_000) * 3_600_000);
+const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export async function mountStocherkahn(root: HTMLElement): Promise<void> {
   clear(root);
@@ -36,23 +36,82 @@ export async function mountStocherkahn(root: HTMLElement): Promise<void> {
   if (!season) {
     wrap.append(el('p', { class: 'muted' }, ['Der Stocherkahn ist derzeit nicht im Wasser (keine aktive Saison).']));
   } else {
-    wrap.append(
-      el('div', { class: 'card' }, [
-        el('h2', {}, [season.name ?? 'Saison']),
-        el('div', {}, [`Im Wasser ${tag(season.water_date)} – ${tag(season.withdraw_date)}`]),
-        el('div', { class: 'muted' }, ['Stundenweise buchbar · 1 € pro Stunde']),
-      ]),
-    );
+    wrap.append(el('div', { class: 'card' }, [
+      el('h2', {}, [season.name ?? 'Saison']),
+      el('div', {}, [`Im Wasser ${tag(season.water_date)} – ${tag(season.withdraw_date)}`]),
+      el('div', { class: 'muted' }, ['Stundenweise buchbar · kostenlos']),
+    ]));
   }
 
   if (me?.role === 'admin') wrap.append(renderSeasonEditor(season, () => mountStocherkahn(root)));
+  if (season) wrap.append(await renderSchedule(season));
   if (season && me) {
     wrap.append(await renderBookingForm(season, me, () => mountStocherkahn(root)));
     wrap.append(await renderMyBookings(me, () => mountStocherkahn(root)));
   }
 }
 
-// --- Buchungsformular --------------------------------------------------------
+// --- Belegung (browsable day schedule) --------------------------------------
+async function renderSchedule(season: StocherkahnSeason): Promise<HTMLElement> {
+  const card = el('div', { class: 'card' }, [el('h2', {}, ['Belegung'])]);
+  let day = new Date();
+  const min = new Date(season.water_date);
+  const max = new Date(season.withdraw_date);
+  if (day < min) day = min;
+
+  const dateInput = el('input', { type: 'date', value: iso(day), min: season.water_date, max: season.withdraw_date });
+  const prev = el('button', { type: 'button' }, ['‹']);
+  const next = el('button', { type: 'button' }, ['›']);
+  const nav = el('div', { class: 'inline schednav' }, [prev, dateInput, next]);
+  const body = el('div', { class: 'sched' });
+  card.append(nav, body);
+
+  const render = async () => {
+    clear(body);
+    body.append(el('p', { class: 'loading' }, ['Wird geladen…']));
+    let rows;
+    try {
+      rows = await listSchedule(dateInput.value);
+    } catch (e) {
+      clear(body); body.append(el('p', { class: 'err' }, [(e as Error).message])); return;
+    }
+    clear(body);
+    if (rows.length === 0) { body.append(el('p', { class: 'muted' }, ['Frei — keine Buchung an diesem Tag.'])); return; }
+    // day window (dawn–dusk) to scale the bars
+    const sun = civilDawnDusk(dateInput.value, season.latitude, season.longitude);
+    const dayStart = sun.dawn ? +floorHour(sun.dawn) : +new Date(`${dateInput.value}T06:00:00`);
+    const dayEnd = sun.dusk ? +ceilHour(sun.dusk) : +new Date(`${dateInput.value}T22:00:00`);
+    const span = Math.max(1, dayEnd - dayStart);
+    for (const r of rows) {
+      const s = +new Date(r.starts_at), e = +new Date(r.ends_at);
+      const left = Math.max(0, Math.min(100, ((s - dayStart) / span) * 100));
+      const width = Math.max(4, Math.min(100 - left, ((e - s) / span) * 100));
+      const hours = Math.round((e - s) / 3_600_000);
+      const rowEl = el('div', { class: 'schedrow' }, [
+        el('div', { class: 'schedmeta' }, [
+          el('strong', {}, [r.member_name]),
+          el('span', { class: 'muted' }, [` ${hhmm(r.starts_at)}–${hhmm(r.ends_at)} · ${hours} Std`]),
+        ]),
+        el('div', { class: 'schedtrack' }, [
+          el('div', { class: 'schedbar', style: `left:${left}%;width:${width}%` }, []),
+        ]),
+      ]);
+      body.append(rowEl);
+    }
+  };
+
+  const shift = (days: number) => {
+    const d = new Date(dateInput.value); d.setDate(d.getDate() + days);
+    if (d >= min && d <= max) { dateInput.value = iso(d); render(); }
+  };
+  prev.addEventListener('click', () => shift(-1));
+  next.addEventListener('click', () => shift(1));
+  dateInput.addEventListener('change', render);
+  await render();
+  return card;
+}
+
+// --- Buchungsformular (kostenlos) -------------------------------------------
 async function renderBookingForm(
   season: StocherkahnSeason, me: Member, onChange: () => void,
 ): Promise<HTMLElement> {
@@ -63,19 +122,11 @@ async function renderBookingForm(
   const windowLine = el('div', { class: 'muted' }, ['Wähle ein Datum, um das Zeitfenster zu sehen.']);
   const startSel = el('select', {}, []);
   const durSel = el('select', {}, []);
-  const feeLine = el('div', { class: 'pill' }, ['Gebühr: –']);
   const bookedLine = el('div', { class: 'muted' }, []);
   const book = el('button', { type: 'button', class: 'primary' }, ['Buchen']);
   book.disabled = true;
 
-  let starts: Date[] = []; // candidate start instants (whole hours)
   let dusk: Date | null = null;
-
-  const updateFee = () => {
-    const hrs = Number(durSel.value || 0);
-    feeLine.textContent = hrs ? `Gebühr: ${hrs} €` : 'Gebühr: –';
-    book.textContent = hrs ? `Buchen & ${hrs} € zahlen` : 'Buchen';
-  };
 
   const rebuildDurations = () => {
     clear(durSel);
@@ -85,38 +136,29 @@ async function renderBookingForm(
     for (let h = 1; h <= Math.max(1, maxHours); h++) {
       durSel.append(el('option', { value: h }, [`${h} Stunde${h > 1 ? 'n' : ''}`]));
     }
-    updateFee();
   };
 
   dateInput.addEventListener('change', () => {
     const d = dateInput.value;
-    clear(startSel); clear(durSel); book.disabled = true; updateFee();
+    clear(startSel); clear(durSel); book.disabled = true;
     if (!d) return;
     const sun = civilDawnDusk(d, season.latitude, season.longitude);
-    if (!sun.dawn || !sun.dusk) {
-      windowLine.textContent = 'An diesem Tag gibt es kein Tageslichtfenster.';
-      return;
-    }
+    if (!sun.dawn || !sun.dusk) { windowLine.textContent = 'An diesem Tag gibt es kein Tageslichtfenster.'; return; }
     dusk = sun.dusk;
     windowLine.textContent = `Dämmerung ${hhmm(sun.dawn)} bis ${hhmm(sun.dusk)} (Ortszeit)`;
-
-    const first = ceilHour(sun.dawn);
-    const last = floorHour(sun.dusk);
-    starts = [];
+    const first = ceilHour(sun.dawn), last = floorHour(sun.dusk);
+    const starts: Date[] = [];
     for (let t = +first; t < +last; t += 3_600_000) starts.push(new Date(t));
-    if (starts.length === 0) { window.textContent += ' — zu kurz zum Buchen.'; return; }
+    if (starts.length === 0) { windowLine.textContent += ' — zu kurz zum Buchen.'; return; }
     for (const s of starts) startSel.append(el('option', { value: +s }, [hhmm(s)]));
     book.disabled = false;
     rebuildDurations();
-
     const onDay = allBookings.filter((b) => b.booking_date === d);
     bookedLine.textContent = onDay.length
       ? 'Bereits belegt: ' + onDay.map((b) => `${hhmm(b.starts_at)}–${hhmm(b.ends_at)}`).join(', ')
       : '';
   });
-
   startSel.addEventListener('change', rebuildDurations);
-  durSel.addEventListener('change', updateFee);
 
   book.addEventListener('click', async () => {
     const d = dateInput.value;
@@ -125,17 +167,15 @@ async function renderBookingForm(
     const s = new Date(Number(startSel.value));
     const e = new Date(+s + hrs * 3_600_000);
     book.disabled = true;
-    book.textContent = 'Reserviere…';
+    book.textContent = 'Buche…';
     try {
-      const booking = await createBooking(me.id, d, s, e);
-      const url = await startCheckout(booking.id);
-      if (url && url !== location.href) { location.href = url; return; }
+      await createBooking(me.id, d, s, e);
       toast('Gebucht');
       onChange();
     } catch (err) {
       toast((err as Error).message, false);
       book.disabled = false;
-      updateFee();
+      book.textContent = 'Buchen';
     }
   });
 
@@ -143,7 +183,6 @@ async function renderBookingForm(
     field('Datum', dateInput),
     windowLine,
     el('div', { class: 'grid2' }, [field('Startzeit', startSel), field('Dauer', durSel)]),
-    feeLine,
     book,
     bookedLine,
   );
@@ -154,45 +193,28 @@ async function renderBookingForm(
 async function renderMyBookings(me: Member, onChange: () => void): Promise<HTMLElement> {
   const card = el('div', { class: 'card' }, [el('h2', {}, ['Meine Buchungen'])]);
   const mine = await listMyBookings(me.id);
-  if (mine.length === 0) {
+  const upcoming = mine.filter((b) => b.status !== 'cancelled');
+  if (upcoming.length === 0) {
     card.append(el('p', { class: 'muted' }, ['Noch keine Buchungen.']));
     return card;
   }
-  for (const b of mine) card.append(renderBookingRow(b, onChange));
+  for (const b of upcoming) card.append(renderBookingRow(b, onChange));
   return card;
 }
 
 function renderBookingRow(b: StocherkahnBooking, onChange: () => void): HTMLElement {
-  const paid = b.payment_status === 'paid';
-  const cancelled = b.status === 'cancelled';
-  const euros = (b.fee_cents / 100).toFixed(0);
-  const statusText = cancelled ? 'storniert' : paid ? 'bezahlt ✓' : 'Zahlung offen';
-  const tags = [
-    el('span', { class: 'pill' }, [tag(b.booking_date)]),
-    el('span', { class: 'pill' }, [`${hhmm(b.starts_at)}–${hhmm(b.ends_at)}`]),
-    el('span', { class: 'pill' }, [`${euros} €`]),
-    el('span', { class: `pill ${paid ? 'ok' : ''}` }, [statusText]),
-  ];
-  const row = el('div', { class: 'row' }, [el('div', {}, tags)]);
-  if (!cancelled) {
-    if (!paid) {
-      const pay = el('button', { type: 'button' }, ['Bezahlen']);
-      pay.addEventListener('click', async () => {
-        try {
-          const url = await startCheckout(b.id);
-          if (url && url !== location.href) location.href = url;
-          else onChange();
-        } catch (e) { toast((e as Error).message, false); }
-      });
-      row.append(pay);
-    }
-    const cancel = el('button', { class: 'link danger', type: 'button' }, ['Stornieren']);
-    cancel.addEventListener('click', async () => {
-      try { await cancelBooking(b.id); toast('Storniert'); onChange(); }
-      catch (e) { toast((e as Error).message, false); }
-    });
-    row.append(cancel);
-  }
+  const row = el('div', { class: 'row' }, [
+    el('div', {}, [
+      el('span', { class: 'pill' }, [tag(b.booking_date)]),
+      el('span', { class: 'pill' }, [`${hhmm(b.starts_at)}–${hhmm(b.ends_at)}`]),
+    ]),
+  ]);
+  const cancel = el('button', { class: 'link danger', type: 'button' }, ['Stornieren']);
+  cancel.addEventListener('click', async () => {
+    try { await cancelBooking(b.id); toast('Storniert'); onChange(); }
+    catch (e) { toast((e as Error).message, false); }
+  });
+  row.append(cancel);
   return row;
 }
 

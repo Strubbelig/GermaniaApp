@@ -9,7 +9,7 @@ import { toast } from './ui';
 import type {
   Member, Address, ProfessionCategory, MemberProfession, Relative, RelativeDetail,
   Gathering, GatheringAttendance, DirectoryEntry, DeceasedEntry, NearbyMember, ProfessionMatch, Rsvp, Role,
-  StocherkahnSeason, StocherkahnBooking,
+  StocherkahnSeason, StocherkahnBooking, StocherkahnScheduleEntry,
 } from './database.types';
 
 const now = new Date().toISOString();
@@ -141,6 +141,11 @@ function latLon(geo: string | null): { lat: number | null; lon: number | null } 
   const m = geo?.match(/POINT\(([-\d.]+) ([-\d.]+)\)/);
   return m ? { lon: Number(m[1]), lat: Number(m[2]) } : { lat: null, lon: null };
 }
+function professionsOf(memberId: string): string | null {
+  return professions.filter((x) => x.member_id === memberId)
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
+    .map((x) => x.title).join(', ') || null;
+}
 function directoryFor(m: Member): DirectoryEntry {
   const a = addresses.find((x) => x.member_id === m.id && x.is_primary);
   const p = professions.find((x) => x.member_id === m.id && x.is_primary);
@@ -154,7 +159,7 @@ function directoryFor(m: Member): DirectoryEntry {
     corp_status: m.corp_status, fencing_bouts: m.fencing_bouts,
     charges: officeHistory.filter((h) => h.member_id === m.id)
       .map((h) => `${abbr(h.office_code)} ${h.semester ?? ''}`.trim()).join(', ') || null,
-    profession: p?.title ?? null,
+    profession: professionsOf(m.id),
     profession_category: c?.name ?? null, street: a?.street ?? null, house_number: null,
     postal_code: a?.postal_code ?? null, city: a?.city ?? null, region: a?.region ?? null,
     country_code: a?.country_code ?? null, geo: a?.geo ?? null, latitude: ll.lat, longitude: ll.lon,
@@ -176,6 +181,7 @@ export const hasSession = () => wait(true);
 export const onAuthChange = (_cb: (s: boolean) => void) => () => {};
 export const signOut = async () => { toast('Demo-Modus — Abmelden deaktiviert'); };
 export const signInWithMagicLink = async () => { toast('Demo-Modus — bereits angemeldet'); };
+export const signInWithOAuth = async () => { toast('Demo-Modus — bereits angemeldet'); };
 export const signInWithPassword = async () => { toast('Demo-Modus — bereits angemeldet'); };
 export const signUpWithPassword = async () => { toast('Demo-Modus — bereits angemeldet'); };
 export const sendPasswordReset = async () => { toast('Demo-Modus'); };
@@ -231,13 +237,12 @@ export const getDirectory = () => wait(members.filter(visible).map(directoryFor)
 export const getMapMarkers = () => wait(members.filter(visible).map(directoryFor).filter((d) => d.latitude != null));
 export const listDeceased = (): Promise<DeceasedEntry[]> =>
   wait(members.filter((m) => m.status === 'deceased').map((m) => {
-    const p = professions.find((x) => x.member_id === m.id && x.is_primary);
     const yr = (d: string | null) => (d ? new Date(d).getFullYear() : null);
     return {
       id: m.id, salutation: m.salutation, first_name: m.first_name, last_name: m.last_name,
       maiden_name: m.maiden_name, date_of_birth: m.date_of_birth, date_of_death: m.date_of_death,
       photo_url: m.photo_url, trivia: m.trivia, birth_year: yr(m.date_of_birth),
-      death_year: yr(m.date_of_death), profession: p?.title ?? null,
+      death_year: yr(m.date_of_death), profession: professionsOf(m.id),
     };
   }));
 export const membersByProfession = (q: string): Promise<ProfessionMatch[]> => {
@@ -288,8 +293,14 @@ export const createGathering = async (input: any) => {
   };
   gatherings.push(g); return g;
 };
-export const rsvpToGathering = async (gathering_id: string, member_id: string, rsvp: Rsvp, guests = 0): Promise<GatheringAttendance> =>
-  wait({ gathering_id, member_id, rsvp, guests, created_at: now });
+const rsvps: { gathering_id: string; member_id: string; rsvp: Rsvp }[] = [];
+export const listMyRsvps = (memberId: string) =>
+  wait(rsvps.filter((r) => r.member_id === memberId).map((r) => ({ gathering_id: r.gathering_id, rsvp: r.rsvp })));
+export const rsvpToGathering = async (gathering_id: string, member_id: string, rsvp: Rsvp, guests = 0): Promise<GatheringAttendance> => {
+  const ex = rsvps.find((r) => r.gathering_id === gathering_id && r.member_id === member_id);
+  if (ex) ex.rsvp = rsvp; else rsvps.push({ gathering_id, member_id, rsvp });
+  return wait({ gathering_id, member_id, rsvp, guests, created_at: now });
+};
 
 // export
 export const exportContacts = async (ids: string[]) =>
@@ -375,7 +386,22 @@ let season: StocherkahnSeason = {
   id: 'season-2026', name: 'Season 2026', water_date: '2026-04-01', withdraw_date: '2026-10-31',
   latitude: 48.5216, longitude: 9.0576, is_active: true, created_at: now, updated_at: now,
 };
-const bookings: StocherkahnBooking[] = [];
+function demoBooking(memberId: string, date: string, startH: number, hours: number): StocherkahnBooking {
+  const s = new Date(`${date}T${String(startH).padStart(2, '0')}:00:00`);
+  const e = new Date(+s + hours * 3_600_000);
+  return {
+    id: uid(), season_id: season.id, member_id: memberId, booking_date: date,
+    starts_at: s.toISOString(), ends_at: e.toISOString(), status: 'confirmed',
+    fee_cents: 0, currency: 'eur', payment_status: 'unpaid',
+    stripe_session_id: null, stripe_payment_intent_id: null, created_at: now, updated_at: now,
+  };
+}
+// Sample bookings so the schedule ("Belegung") shows something in demo mode.
+const _demoDay = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+const bookings: StocherkahnBooking[] = [
+  demoBooking('m4', _demoDay, 10, 2),
+  demoBooking('m2', _demoDay, 14, 3),
+];
 
 export const getActiveSeason = () => wait(season);
 export const saveSeason = async (input: any) => {
@@ -394,15 +420,21 @@ export const createBooking = async (
     (b) => b.status !== 'cancelled' && +new Date(b.starts_at) < +e && +s < +new Date(b.ends_at),
   );
   if (overlap) throw new Error('Dieser Zeitraum ist bereits belegt.');
-  const hours = Math.max(1, Math.round((+e - +s) / 3_600_000));
   const b: StocherkahnBooking = {
     id: uid(), season_id: season.id, member_id: memberId, booking_date: date,
     starts_at: s.toISOString(), ends_at: e.toISOString(),
-    status: 'pending', fee_cents: hours * 100, currency: 'eur', payment_status: 'unpaid',
+    status: 'confirmed', fee_cents: 0, currency: 'eur', payment_status: 'unpaid',
     stripe_session_id: null, stripe_payment_intent_id: null, created_at: now, updated_at: now,
   };
   bookings.push(b); return b;
 };
+export const listSchedule = (date: string): Promise<StocherkahnScheduleEntry[]> =>
+  wait(bookings.filter((b) => b.booking_date === date && b.status !== 'cancelled')
+    .sort((a, b) => +new Date(a.starts_at) - +new Date(b.starts_at))
+    .map((b) => ({
+      id: b.id, season_id: b.season_id, booking_date: b.booking_date, starts_at: b.starts_at,
+      ends_at: b.ends_at, status: b.status, member_id: b.member_id, member_name: nameOf(b.member_id) ?? '—',
+    })));
 export const startCheckout = async (bookingId: string): Promise<string> => {
   // Demo: no real Stripe — simulate a successful €1 payment.
   const b = bookings.find((x) => x.id === bookingId);

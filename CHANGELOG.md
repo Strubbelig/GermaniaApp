@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.9.0] — Free boat booking + schedule; multi-profession fix — 2026-07
+
+### Changed
+- **Stocherkahn booking is now free** — no payment step; bookings are confirmed
+  immediately. (Stripe functions remain but are unused.)
+
+### Added
+- **Belegung**: a browsable day schedule on the Stocherkahn screen showing who has
+  the boat, when, and for how long, as proportional time bars (prev/next day).
+  New `stocherkahn_schedule` view + `listSchedule`. Migration
+  `0003_stocherkahn_schedule.sql`.
+- **RSVP colour feedback**: event Zusage/Vielleicht/Absage buttons highlight the
+  chosen answer (green/amber/red) and reflect the saved choice.
+
+### Fixed
+- Members with **several professions** appeared multiple times in the directory /
+  proximity search — now aggregated to one row per member. Migration
+  `0002_multi_profession.sql`.
+
+
+## [0.8.1] — Social login — 2026-07
+
+### Added
+- Sign in with **Google, Apple and LinkedIn** (Supabase OAuth) — buttons on the
+  sign-in screen. Each provider must be enabled in Supabase with its own
+  credentials; see `SETUP.md` Part E.
+
+
 ## [0.8.0] — Permission model tightened — 2026-07
 
 ### Changed
