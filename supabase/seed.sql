@@ -101,7 +101,7 @@ insert into address (member_id, label, is_primary, street, postal_code, city, re
 
 -- --- Professions (precise title + taxonomy link) -----------------------------
 insert into member_profession (member_id, category_id, title, organization, is_primary)
-select m.member_id, c.id, m.title, m.org, true
+select m.member_id::uuid, c.id, m.title, m.org, true
 from (values
  ('a0000000-0000-0000-0000-000000000001','urology','Urologe','Charité Berlin'),
  ('a0000000-0000-0000-0000-000000000002','real-estate-law','Auf Immobilienrecht spezialisierter Anwalt','Klein & Partner'),

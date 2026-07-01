@@ -449,7 +449,7 @@ returns table (
     where mp.title ilike '%' || q || '%'
        or pc.name  ilike '%' || q || '%'
        or pc.slug  =     lower(q)
-    order by m.last_name;
+    order by 2;   -- order by the full-name column (required with SELECT DISTINCT)
 $$;
 
 -- 6d. Contact-list export: given a set of member ids, return the clean

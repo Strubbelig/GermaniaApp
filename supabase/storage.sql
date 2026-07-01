@@ -8,6 +8,14 @@ insert into storage.buckets (id, name, public)
 values ('member-photos', 'member-photos', true)
 on conflict (id) do nothing;
 
+-- Drop first so this file is safe to re-run.
+drop policy if exists "member photos are readable" on storage.objects;
+drop policy if exists "members upload to own folder" on storage.objects;
+drop policy if exists "members update own photos" on storage.objects;
+drop policy if exists "members delete own photos" on storage.objects;
+drop policy if exists "ganze photos readable" on storage.objects;
+drop policy if exists "members upload ganze photos to own folder" on storage.objects;
+
 -- Anyone (incl. anon) may READ photos (directory is members-only at the app
 -- layer; tighten to 'authenticated' here if you prefer).
 create policy "member photos are readable"
