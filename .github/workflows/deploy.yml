@@ -23,10 +23,12 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      # No Supabase secrets set -> the app builds in DEMO mode with sample data.
-      # To go live, add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY as repo
-      # variables/secrets and pass them here as env.
+      # If the two Supabase secrets are set on the repo, the build connects to the
+      # real backend. If they're empty, the app builds in DEMO mode with sample data.
       - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

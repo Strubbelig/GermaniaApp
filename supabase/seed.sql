@@ -41,9 +41,12 @@ insert into member (id, salutation, first_name, last_name, email, phone, member_
  ('a0000000-0000-0000-0000-00000000000a','','Camille','Laurent','camille.laurent@example.org','+33 1 1110010','2022-05-18','1986-10-09','female','IP lawyer in Paris.')
 on conflict (id) do nothing;
 
--- Demo roles: Anna is admin, Markus is officer (everyone else stays 'member').
-update member set role = 'admin'   where id = 'a0000000-0000-0000-0000-000000000001';
-update member set role = 'officer' where id = 'a0000000-0000-0000-0000-000000000004';
+-- Office holders are admins (Sprecher, Fechtwart, Schriftwart). See offices below.
+update member set role = 'admin' where id in (
+  'a0000000-0000-0000-0000-000000000001',   -- Anna  (Sprecher)
+  'a0000000-0000-0000-0000-000000000004',   -- Markus (Fechtwart)
+  'a0000000-0000-0000-0000-000000000002'    -- Thomas (Schriftwart)
+);
 
 -- --- Primary addresses (geocoded) --------------------------------------------
 insert into address (member_id, label, is_primary, street, postal_code, city, region, country_code, geo) values
@@ -87,24 +90,37 @@ insert into relative (member_id, relationship, first_name, last_name, gender, da
  ('a0000000-0000-0000-0000-000000000009','child','Paul','Hoffmann','male','2008-01-05','Domkloster 4','50667','Cologne','DE', st_setsrid(st_makepoint(6.9603,50.9375),4326)::geography);
 
 -- --- Gatherings (recurring, worldwide) ---------------------------------------
-insert into gathering (title, description, venue_name, city, country_code, geo, starts_at, timezone, recurrence_rule, host_member_id) values
- ('Berlin Monthly Stammtisch','Casual dinner, first Friday each month.','Restaurant Lutter','Berlin','DE',
+insert into gathering (title, description, category, semester, venue_name, street, city, country_code, geo, starts_at, timezone, recurrence_rule, host_member_id) values
+ -- Stammtisch (recurring; location freely set)
+ ('Tübinger Stammtisch','Wöchentlicher Stammtisch, donnerstags.','stammtisch',null,'Weinstube Forelle','Kronenstraße 8','Tübingen','DE',
+    st_setsrid(st_makepoint(9.0576,48.5216),4326)::geography,'2026-07-02 20:00+02','Europe/Berlin','FREQ=WEEKLY;BYDAY=TH',
+    'a0000000-0000-0000-0000-000000000004'),
+ ('Berliner Stammtisch','Erster Freitag im Monat.','stammtisch',null,'Restaurant Lutter',null,'Berlin','DE',
     st_setsrid(st_makepoint(13.4050,52.5200),4326)::geography,'2026-07-03 19:00+02','Europe/Berlin','FREQ=MONTHLY;BYDAY=1FR',
     'a0000000-0000-0000-0000-000000000001'),
- ('Zurich Weekly Lunch','Members lunch every Wednesday.','Cafe Sprungli','Zurich','CH',
-    st_setsrid(st_makepoint(8.5417,47.3769),4326)::geography,'2026-07-01 12:30+02','Europe/Zurich','FREQ=WEEKLY;BYDAY=WE',
+ -- Semesterprogramm (one-off per semester; at the house, Gartenstraße 3)
+ ('Semesterantrittskommers','Feierlicher Auftakt ins Wintersemester.','semesterprogramm','WS 2026/27','Haus Germania','Gartenstraße 3','Tübingen','DE',
+    st_setsrid(st_makepoint(9.0576,48.5216),4326)::geography,'2026-10-24 19:00+02','Europe/Berlin',null,
+    'a0000000-0000-0000-0000-000000000001'),
+ ('Vortragsabend','Gastvortrag mit anschließendem Umtrunk.','semesterprogramm','WS 2026/27','Haus Germania','Gartenstraße 3','Tübingen','DE',
+    st_setsrid(st_makepoint(9.0576,48.5216),4326)::geography,'2026-11-14 19:30+01','Europe/Berlin',null,
     'a0000000-0000-0000-0000-000000000004'),
- ('New York Quarterly Gala','Black-tie networking evening.','The Plaza','New York','US',
-    st_setsrid(st_makepoint(-74.0060,40.7128),4326)::geography,'2026-09-19 18:30-04','America/New_York','FREQ=MONTHLY;INTERVAL=3;BYDAY=3SA',
-    'a0000000-0000-0000-0000-000000000006'),
- ('London Members Dinner','Quarterly dinner in the City.','The Ivy','London','GB',
-    st_setsrid(st_makepoint(-0.1278,51.5074),4326)::geography,'2026-07-17 19:30+01','Europe/London','FREQ=MONTHLY;INTERVAL=3;BYDAY=3FR',
-    'a0000000-0000-0000-0000-000000000007');
+ -- Pauktag (fencing day; one-off, location freely set)
+ ('Pauktag','Bestimmungsmensuren am Vormittag.','pauktag',null,'Fechtboden',null,'Tübingen','DE',
+    st_setsrid(st_makepoint(9.0576,48.5216),4326)::geography,'2026-11-07 09:00+01','Europe/Berlin',null,
+    'a0000000-0000-0000-0000-000000000004');
 
 -- --- Stocherkahn season (Tübingen) -------------------------------------------
 insert into stocherkahn_season (id, name, water_date, withdraw_date, latitude, longitude, is_active) values
  ('50000000-0000-0000-0000-000000000001','Season 2026','2026-04-01','2026-10-31',48.5216,9.0576,true)
 on conflict (id) do nothing;
+
+-- --- Offices / Ämter ---------------------------------------------------------
+insert into office (code, title, current_holder_id, term_semester) values
+ ('sprecher','Sprecher (x)','a0000000-0000-0000-0000-000000000001','WS 2026/27'),
+ ('fechtwart','Fechtwart (xx)','a0000000-0000-0000-0000-000000000004','WS 2026/27'),
+ ('schriftwart','Schriftwart (xxx)','a0000000-0000-0000-0000-000000000002','WS 2026/27')
+on conflict (code) do nothing;
 
 -- =============================================================================
 -- Quick checks after loading:

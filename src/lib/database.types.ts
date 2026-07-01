@@ -6,6 +6,8 @@
 // =============================================================================
 
 export type Role = 'member' | 'officer' | 'admin';
+export type GatheringCategory = 'stammtisch' | 'semesterprogramm' | 'pauktag' | 'other';
+export type OfficeCode = 'sprecher' | 'fechtwart' | 'schriftwart';
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';
 export type PaymentStatus = 'unpaid' | 'paid' | 'refunded';
 export type Visibility = 'members' | 'officers' | 'private';
@@ -137,6 +139,8 @@ export interface Database {
           id: string;
           title: string;
           description: string | null;
+          category: GatheringCategory;
+          semester: string | null;
           venue_name: string | null;
           street: string | null;
           city: string | null;
@@ -154,9 +158,9 @@ export interface Database {
         };
         Insert: Omit<
           Database['public']['Tables']['gathering']['Row'],
-          'id' | 'created_at' | 'updated_at'
+          'id' | 'created_at' | 'updated_at' | 'category' | 'semester' | 'visibility'
         > &
-          Partial<Pick<Database['public']['Tables']['gathering']['Row'], 'id'>>;
+          Partial<Pick<Database['public']['Tables']['gathering']['Row'], 'id' | 'category' | 'semester' | 'visibility'>>;
         Update: Partial<Database['public']['Tables']['gathering']['Insert']>;
       };
       gathering_attendance: {
@@ -208,7 +212,46 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['stocherkahn_booking']['Row']>;
       };
     };
+      office: {
+        Row: {
+          id: string;
+          code: OfficeCode;
+          title: string;
+          current_holder_id: string | null;
+          term_semester: string | null;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['office']['Row'], 'id' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['office']['Row']>;
+      };
+      office_transfer: {
+        Row: {
+          id: string;
+          office_id: string;
+          from_member_id: string | null;
+          to_member_id: string;
+          initiated_by: string;
+          status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+          created_at: string;
+          resolved_at: string | null;
+        };
+        Insert: Omit<Database['public']['Tables']['office_transfer']['Row'], 'id' | 'created_at' | 'resolved_at' | 'status'> &
+          Partial<Pick<Database['public']['Tables']['office_transfer']['Row'], 'status'>>;
+        Update: Partial<Database['public']['Tables']['office_transfer']['Row']>;
+      };
+    };
     Views: {
+      office_directory: {
+        Row: {
+          id: string;
+          code: OfficeCode;
+          title: string;
+          current_holder_id: string | null;
+          term_semester: string | null;
+          updated_at: string;
+          holder_name: string | null;
+        };
+      };
       member_directory: {
         Row: {
           id: string;
@@ -286,6 +329,18 @@ export interface Database {
         Args: { target: string; new_role: Role };
         Returns: undefined;
       };
+      initiate_office_transfer: {
+        Args: { p_office: string; p_to: string | null };
+        Returns: string | null;
+      };
+      respond_office_transfer: {
+        Args: { p_transfer: string; p_accept: boolean };
+        Returns: undefined;
+      };
+      reclaim_office: {
+        Args: { p_office: string; p_semester: string };
+        Returns: undefined;
+      };
     };
   };
 }
@@ -301,6 +356,8 @@ export type Gathering = Database['public']['Tables']['gathering']['Row'];
 export type GatheringAttendance = Database['public']['Tables']['gathering_attendance']['Row'];
 export type StocherkahnSeason = Database['public']['Tables']['stocherkahn_season']['Row'];
 export type StocherkahnBooking = Database['public']['Tables']['stocherkahn_booking']['Row'];
+export type Office = Database['public']['Views']['office_directory']['Row'];
+export type OfficeTransfer = Database['public']['Tables']['office_transfer']['Row'];
 export type DirectoryEntry = Database['public']['Views']['member_directory']['Row'];
 export type ContactExportRow = Database['public']['Views']['member_contact_export']['Row'];
 export type NearbyMember = Database['public']['Functions']['members_near']['Returns'][number];

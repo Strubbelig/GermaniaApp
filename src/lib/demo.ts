@@ -83,22 +83,25 @@ function rel(
   };
 }
 
+interface GatSeed {
+  title: string; description: string; category: Gathering['category']; semester?: string | null;
+  venue: string; street: string | null; city: string; cc: string; lat: number; lon: number;
+  starts: string; rule: string | null; host: string;
+}
 const gatherings: Gathering[] = [
-  gat('Berlin Monthly Stammtisch', 'Casual dinner, first Friday each month.', 'Restaurant Lutter', 'Berlin', 'DE', '2026-07-03T19:00:00Z', 'FREQ=MONTHLY;BYDAY=1FR', 'm1'),
-  gat('Zurich Weekly Lunch', 'Members lunch every Wednesday.', 'Café Sprüngli', 'Zurich', 'CH', '2026-07-01T12:30:00Z', 'FREQ=WEEKLY;BYDAY=WE', 'm4'),
-  gat('New York Quarterly Gala', 'Black-tie networking evening.', 'The Plaza', 'New York', 'US', '2026-09-19T18:30:00Z', 'FREQ=MONTHLY;INTERVAL=3;BYDAY=3SA', 'm6'),
-  gat('London Members Dinner', 'Quarterly dinner in the City.', 'The Ivy', 'London', 'GB', '2026-07-17T19:30:00Z', 'FREQ=MONTHLY;INTERVAL=3;BYDAY=3FR', 'm7'),
+  gat({ title: 'Tübinger Stammtisch', description: 'Wöchentlicher Stammtisch, donnerstags.', category: 'stammtisch', venue: 'Weinstube Forelle', street: 'Kronenstraße 8', city: 'Tübingen', cc: 'DE', lat: 48.5216, lon: 9.0576, starts: '2026-07-02T18:00:00Z', rule: 'FREQ=WEEKLY;BYDAY=TH', host: 'm4' }),
+  gat({ title: 'Berliner Stammtisch', description: 'Erster Freitag im Monat.', category: 'stammtisch', venue: 'Restaurant Lutter', street: null, city: 'Berlin', cc: 'DE', lat: 52.52, lon: 13.405, starts: '2026-07-03T17:00:00Z', rule: 'FREQ=MONTHLY;BYDAY=1FR', host: 'm1' }),
+  gat({ title: 'Semesterantrittskommers', description: 'Feierlicher Auftakt ins Wintersemester.', category: 'semesterprogramm', semester: 'WS 2026/27', venue: 'Haus Germania', street: 'Gartenstraße 3', city: 'Tübingen', cc: 'DE', lat: 48.5216, lon: 9.0576, starts: '2026-10-24T17:00:00Z', rule: null, host: 'm1' }),
+  gat({ title: 'Vortragsabend', description: 'Gastvortrag mit anschließendem Umtrunk.', category: 'semesterprogramm', semester: 'WS 2026/27', venue: 'Haus Germania', street: 'Gartenstraße 3', city: 'Tübingen', cc: 'DE', lat: 48.5216, lon: 9.0576, starts: '2026-11-14T18:30:00Z', rule: null, host: 'm4' }),
+  gat({ title: 'Pauktag', description: 'Bestimmungsmensuren am Vormittag.', category: 'pauktag', venue: 'Fechtboden', street: null, city: 'Tübingen', cc: 'DE', lat: 48.5216, lon: 9.0576, starts: '2026-11-07T08:00:00Z', rule: null, host: 'm4' }),
 ];
-function gat(
-  title: string, description: string, venue: string, city: string, cc: string,
-  starts: string, rule: string, host: string,
-): Gathering {
-  const s = SRC.find((x) => x.id === host)!;
+function gat(g: GatSeed): Gathering {
   return {
-    id: uid(), title, description, venue_name: venue, street: null, city, region: null,
-    country_code: cc, geo: `POINT(${s.lon} ${s.lat})`, starts_at: starts, ends_at: null,
-    timezone: null, recurrence_rule: rule, host_member_id: host, visibility: 'members',
-    created_at: now, updated_at: now,
+    id: uid(), title: g.title, description: g.description, category: g.category,
+    semester: g.semester ?? null, venue_name: g.venue, street: g.street, city: g.city,
+    region: null, country_code: g.cc, geo: `POINT(${g.lon} ${g.lat})`, starts_at: g.starts,
+    ends_at: null, timezone: null, recurrence_rule: g.rule, host_member_id: g.host,
+    visibility: 'members', created_at: now, updated_at: now,
   };
 }
 
@@ -221,9 +224,15 @@ export const membersNear = (lat: number, lon: number, radiusKm = 50): Promise<Ne
 };
 
 // gatherings
-export const listGatherings = () => wait([...gatherings].sort((a, b) => +new Date(a.starts_at) - +new Date(b.starts_at)));
+export const listGatherings = (opts: { from?: string; category?: Gathering['category'] } = {}) =>
+  wait([...gatherings]
+    .filter((g) => !opts.category || g.category === opts.category)
+    .sort((a, b) => +new Date(a.starts_at) - +new Date(b.starts_at)));
 export const createGathering = async (input: any) => {
-  const g: Gathering = { id: uid(), created_at: now, updated_at: now, visibility: 'members', ...input };
+  const g: Gathering = {
+    id: uid(), created_at: now, updated_at: now, visibility: 'members',
+    category: 'other', semester: null, ...input,
+  };
   gatherings.push(g); return g;
 };
 export const rsvpToGathering = async (gathering_id: string, member_id: string, rsvp: Rsvp, guests = 0): Promise<GatheringAttendance> =>
@@ -237,6 +246,47 @@ export const exportContacts = async (ids: string[]) =>
   }));
 export const exportContactsCsv = async (ids: string[], filename = 'contacts.csv') => {
   downloadCsv(filename, toCsv(await exportContacts(ids)));
+};
+
+// offices / Ämter
+interface DemoOffice { id: string; code: 'sprecher' | 'fechtwart' | 'schriftwart'; title: string; current_holder_id: string | null; term_semester: string | null; updated_at: string; }
+const offices: DemoOffice[] = [
+  { id: 'off-sprecher', code: 'sprecher', title: 'Sprecher (x)', current_holder_id: 'm1', term_semester: 'WS 2026/27', updated_at: now },
+  { id: 'off-fechtwart', code: 'fechtwart', title: 'Fechtwart (xx)', current_holder_id: 'm4', term_semester: 'WS 2026/27', updated_at: now },
+  { id: 'off-schriftwart', code: 'schriftwart', title: 'Schriftwart (xxx)', current_holder_id: 'm2', term_semester: 'WS 2026/27', updated_at: now },
+];
+// office holders are admins in the demo
+for (const o of offices) { const m = members.find((x) => x.id === o.current_holder_id); if (m) m.role = 'admin'; }
+interface DemoTransfer { id: string; office_id: string; from_member_id: string | null; to_member_id: string; initiated_by: string; status: 'pending' | 'accepted' | 'declined' | 'cancelled'; created_at: string; resolved_at: string | null; }
+const transfers: DemoTransfer[] = [];
+const nameOf = (id: string | null) => { const m = members.find((x) => x.id === id); return m ? `${m.first_name} ${m.last_name}` : null; };
+
+export const listOffices = () => wait(offices.map((o) => ({ ...o, holder_name: nameOf(o.current_holder_id) })));
+export const listMyOfficeTransfers = (memberId: string) =>
+  wait(transfers.filter((t) => t.status === 'pending' && (t.from_member_id === memberId || t.to_member_id === memberId)));
+export const initiateOfficeTransfer = async (officeId: string, toMemberId?: string) => {
+  const o = offices.find((x) => x.id === officeId); if (!o) throw new Error('Amt nicht gefunden');
+  if (!o.current_holder_id) { o.current_holder_id = toMemberId ?? ME; const m = members.find((x) => x.id === o.current_holder_id); if (m) m.role = 'admin'; return; }
+  const from = o.current_holder_id;
+  const to = ME === o.current_holder_id ? toMemberId : ME;
+  if (!to) throw new Error('Bitte Nachfolger:in wählen');
+  if (from === to) throw new Error('Ungültige Übergabe');
+  transfers.filter((t) => t.office_id === officeId && t.status === 'pending').forEach((t) => { t.status = 'cancelled'; });
+  transfers.push({ id: uid(), office_id: officeId, from_member_id: from, to_member_id: to, initiated_by: ME, status: 'pending', created_at: now, resolved_at: null });
+};
+export const respondOfficeTransfer = async (transferId: string, accept: boolean) => {
+  const t = transfers.find((x) => x.id === transferId); if (!t || t.status !== 'pending') throw new Error('Kein offener Antrag');
+  if (!accept) { t.status = 'declined'; t.resolved_at = now(); return; }
+  const o = offices.find((x) => x.id === t.office_id)!;
+  o.current_holder_id = t.to_member_id;
+  const nm = members.find((x) => x.id === t.to_member_id); if (nm) nm.role = 'admin';
+  if (t.from_member_id && !offices.some((x) => x.current_holder_id === t.from_member_id)) {
+    const om = members.find((x) => x.id === t.from_member_id); if (om) om.role = 'member';
+  }
+  t.status = 'accepted'; t.resolved_at = now();
+};
+export const reclaimOffice = async (officeId: string, semester: string) => {
+  const o = offices.find((x) => x.id === officeId); if (o) o.term_semester = semester;
 };
 
 // admin

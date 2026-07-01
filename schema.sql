@@ -203,6 +203,11 @@ create table gathering (
     title           text not null,
     description     text,
 
+    -- Subsection: Stammtisch (recurring), Semesterprogramm (per-semester) or Pauktag.
+    category        text not null default 'other'
+                    check (category in ('stammtisch','semesterprogramm','pauktag','other')),
+    semester        text,                       -- e.g. 'WS 2026/27' (Semesterprogramm)
+
     -- Location (denormalised so events can be anywhere, not only member homes).
     venue_name      text,
     street          text,
@@ -427,11 +432,8 @@ create policy pc_read on profession_category for select to authenticated using (
 -- GATHERINGS — all members read; host (or any member) may create; host edits --
 create policy gathering_read on gathering for select to authenticated
     using (visibility <> 'private' or host_member_id = current_member_id());
-create policy gathering_insert on gathering for insert to authenticated
-    with check (host_member_id = current_member_id());
-create policy gathering_update on gathering for update to authenticated
-    using (host_member_id = current_member_id())
-    with check (host_member_id = current_member_id());
+-- NOTE: members can only READ events. Creating/editing is staff-only, granted by
+-- the gathering_staff_write policy in the ROLES section below.
 
 create policy attendance_read on gathering_attendance for select to authenticated
     using (true);
@@ -553,7 +555,11 @@ $$;
 create or replace function guard_member_role()
 returns trigger language plpgsql as $$
 begin
-    if new.role is distinct from old.role and not is_admin() then
+    -- Role may change if an admin does it, OR inside a sanctioned office transfer
+    -- (the transfer function sets app.role_transfer = 'on' for its transaction).
+    if new.role is distinct from old.role
+       and not is_admin()
+       and coalesce(current_setting('app.role_transfer', true), '') <> 'on' then
         raise exception 'Only an admin can change a member role';
     end if;
     return new;
@@ -601,6 +607,129 @@ create policy season_staff_write on stocherkahn_season for all to authenticated
     using (is_admin()) with check (is_admin());
 create policy booking_staff_write on stocherkahn_booking for all to authenticated
     using (is_staff()) with check (is_staff());
+
+-- =============================================================================
+-- OFFICES / ÄMTER  (Sprecher, Fechtwart, Schriftwart)
+-- Each office has a current holder who holds admin rights. Offices change every
+-- semester via a two-party handover: either the current holder or the incoming
+-- member starts it, and the other party confirms. On confirmation the holder
+-- swaps, the new holder becomes admin, and the outgoing holder drops to 'member'
+-- unless they still hold another office.
+-- =============================================================================
+create table office (
+    id                uuid primary key default gen_random_uuid(),
+    code              text not null unique
+                      check (code in ('sprecher','fechtwart','schriftwart')),
+    title             text not null,            -- German label
+    current_holder_id uuid references member (id) on delete set null,
+    term_semester     text,                     -- e.g. 'WS 2026/27' (last (re)claim)
+    updated_at        timestamptz not null default now()
+);
+create trigger trg_office_updated before update on office
+    for each row execute function set_updated_at();
+
+create table office_transfer (
+    id             uuid primary key default gen_random_uuid(),
+    office_id      uuid not null references office (id) on delete cascade,
+    from_member_id uuid references member (id) on delete set null,
+    to_member_id   uuid not null references member (id) on delete cascade,
+    initiated_by   uuid not null references member (id) on delete cascade,
+    status         text not null default 'pending'
+                   check (status in ('pending','accepted','declined','cancelled')),
+    created_at     timestamptz not null default now(),
+    resolved_at    timestamptz
+);
+create index on office_transfer (office_id, status);
+create index on office_transfer (to_member_id);
+
+-- Holder + name for display.
+create or replace view office_directory as
+select o.id, o.code, o.title, o.current_holder_id, o.term_semester, o.updated_at,
+       (m.first_name || ' ' || m.last_name) as holder_name
+from office o
+left join member m on m.id = o.current_holder_id;
+
+-- Start a transfer. If the caller is the current holder, p_to is the successor;
+-- otherwise the caller is claiming the office (to = caller). Vacant offices are
+-- assigned immediately. Returns the transfer id (null if applied immediately).
+create or replace function initiate_office_transfer(p_office uuid, p_to uuid default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_caller uuid; v_from uuid; v_to uuid; v_holder uuid; v_id uuid;
+begin
+    v_caller := current_member_id();
+    if v_caller is null then raise exception 'Nicht angemeldet'; end if;
+    select current_holder_id into v_holder from office where id = p_office;
+
+    if v_holder is null then
+        -- Vacant: assign immediately to the chosen member (or the caller).
+        perform set_config('app.role_transfer', 'on', true);
+        update office set current_holder_id = coalesce(p_to, v_caller) where id = p_office;
+        update member set role = 'admin' where id = coalesce(p_to, v_caller);
+        return null;
+    end if;
+
+    if v_caller = v_holder then
+        v_from := v_holder; v_to := p_to;
+        if v_to is null then raise exception 'Bitte Nachfolger:in wählen'; end if;
+    else
+        v_from := v_holder; v_to := v_caller;   -- claim
+    end if;
+    if v_from = v_to then raise exception 'Ungültige Übergabe'; end if;
+
+    update office_transfer set status = 'cancelled', resolved_at = now()
+        where office_id = p_office and status = 'pending';
+    insert into office_transfer (office_id, from_member_id, to_member_id, initiated_by, status)
+        values (p_office, v_from, v_to, v_caller, 'pending')
+        returning id into v_id;
+    return v_id;
+end;
+$$;
+
+-- Confirm or decline a pending transfer. Only the party who did NOT initiate may
+-- respond. On accept, the holder swaps and roles are adjusted.
+create or replace function respond_office_transfer(p_transfer uuid, p_accept boolean)
+returns void language plpgsql security definer set search_path = public as $$
+declare t office_transfer; v_caller uuid; v_counterparty uuid;
+begin
+    v_caller := current_member_id();
+    select * into t from office_transfer where id = p_transfer;
+    if t is null or t.status <> 'pending' then raise exception 'Kein offener Antrag'; end if;
+    v_counterparty := case when t.initiated_by = t.from_member_id
+                           then t.to_member_id else t.from_member_id end;
+    if v_caller <> v_counterparty then raise exception 'Nur die Gegenpartei kann bestätigen'; end if;
+
+    if not p_accept then
+        update office_transfer set status = 'declined', resolved_at = now() where id = p_transfer;
+        return;
+    end if;
+
+    perform set_config('app.role_transfer', 'on', true);
+    update office set current_holder_id = t.to_member_id where id = t.office_id;
+    update member set role = 'admin' where id = t.to_member_id;
+    if t.from_member_id is not null
+       and not exists (select 1 from office where current_holder_id = t.from_member_id) then
+        update member set role = 'member' where id = t.from_member_id;
+    end if;
+    update office_transfer set status = 'accepted', resolved_at = now() where id = p_transfer;
+end;
+$$;
+
+-- Reclaim: current holder marks the office kept for a new term (clears reminder).
+create or replace function reclaim_office(p_office uuid, p_semester text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+    if current_member_id() is distinct from (select current_holder_id from office where id = p_office) then
+        raise exception 'Nur der/die Amtsinhaber:in kann das Amt behalten';
+    end if;
+    update office set term_semester = p_semester where id = p_office;
+end;
+$$;
+
+alter table office          enable row level security;
+alter table office_transfer enable row level security;
+create policy office_read on office for select to authenticated using (true);
+create policy transfer_read on office_transfer for select to authenticated using (true);
+-- All writes go through the SECURITY DEFINER functions above (no write policies).
 
 -- =============================================================================
 -- MINIMAL SEED (illustrative — safe to delete)

@@ -24,6 +24,8 @@ import type {
   Role,
   StocherkahnSeason,
   StocherkahnBooking,
+  Office,
+  OfficeTransfer,
 } from './database.types';
 import { civilDawnDusk } from './suntimes';
 
@@ -372,15 +374,18 @@ export async function membersByProfession(query: string): Promise<ProfessionMatc
 // =============================================================================
 // GATHERINGS
 // =============================================================================
-export async function listGatherings(opts: { from?: string } = {}): Promise<Gathering[]> {
+export async function listGatherings(
+  opts: { from?: string; category?: Gathering['category'] } = {},
+): Promise<Gathering[]> {
   let q = supabase.from('gathering').select('*');
   if (opts.from) q = q.gte('starts_at', opts.from);
+  if (opts.category) q = q.eq('category', opts.category);
   return unwrap(await q.order('starts_at')) ?? [];
 }
 
 export async function createGathering(
-  input: Omit<Gathering, 'id' | 'created_at' | 'updated_at' | 'visibility'> &
-    Partial<Pick<Gathering, 'visibility'>>,
+  input: Omit<Gathering, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'category' | 'semester'> &
+    Partial<Pick<Gathering, 'visibility' | 'category' | 'semester'>>,
 ): Promise<Gathering> {
   const res = await supabase.from('gathering').insert(input).select('*').single();
   return unwrap(res);
@@ -510,6 +515,44 @@ export async function startCheckout(bookingId: string): Promise<string> {
 
 export async function cancelBooking(id: string): Promise<void> {
   const { error } = await supabase.from('stocherkahn_booking').update({ status: 'cancelled' }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// =============================================================================
+// OFFICES / ÄMTER  (Sprecher, Fechtwart, Schriftwart) + two-party handover
+// =============================================================================
+export async function listOffices(): Promise<Office[]> {
+  const res = await supabase.from('office_directory').select('*').order('code');
+  return unwrap(res) ?? [];
+}
+
+/** Pending transfers that involve me (either as outgoing or incoming). */
+export async function listMyOfficeTransfers(memberId: string): Promise<OfficeTransfer[]> {
+  const res = await supabase
+    .from('office_transfer')
+    .select('*')
+    .eq('status', 'pending')
+    .or(`from_member_id.eq.${memberId},to_member_id.eq.${memberId}`);
+  return unwrap(res) ?? [];
+}
+
+/** Start a handover: as holder pass to `toMemberId`, or as member claim (omit it). */
+export async function initiateOfficeTransfer(officeId: string, toMemberId?: string): Promise<void> {
+  const { error } = await supabase.rpc('initiate_office_transfer', {
+    p_office: officeId, p_to: toMemberId ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function respondOfficeTransfer(transferId: string, accept: boolean): Promise<void> {
+  const { error } = await supabase.rpc('respond_office_transfer', {
+    p_transfer: transferId, p_accept: accept,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function reclaimOffice(officeId: string, semester: string): Promise<void> {
+  const { error } = await supabase.rpc('reclaim_office', { p_office: officeId, p_semester: semester });
   if (error) throw new Error(error.message);
 }
 

@@ -65,6 +65,8 @@ npm run dev        # http://localhost:5173  (Demo-Modus, sofern keine .env geset
 
 ## Mit echten Daten (Supabase) live gehen
 
+> Ausführliche Schritt-für-Schritt-Anleitung (englisch): siehe **`SETUP.md`**.
+
 1. Supabase-Projekt anlegen; im SQL-Editor nacheinander ausführen:
    `schema.sql` → `supabase/storage.sql` → `supabase/seed.sql`.
 2. Edge Functions deployen (`supabase/functions/`, siehe deren README): `geocode`,

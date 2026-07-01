@@ -66,6 +66,13 @@ export const createBooking = impl.createBooking;
 export const startCheckout = impl.startCheckout;
 export const cancelBooking = impl.cancelBooking;
 
+// offices / Ämter
+export const listOffices = impl.listOffices;
+export const listMyOfficeTransfers = impl.listMyOfficeTransfers;
+export const initiateOfficeTransfer = impl.initiateOfficeTransfer;
+export const respondOfficeTransfer = impl.respondOfficeTransfer;
+export const reclaimOffice = impl.reclaimOffice;
+
 // admin
 export const getMyRole = impl.getMyRole;
 export const isAdmin = impl.isAdmin;
