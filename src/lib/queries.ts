@@ -49,11 +49,14 @@ function toPoint(lat: number, lon: number): string {
 // =============================================================================
 // AUTH / SESSION
 // =============================================================================
+/** The app's own URL incl. path (e.g. https://user.github.io/GermaniaApp/). */
+const appUrl = () => window.location.origin + window.location.pathname;
+
 /** Passwordless sign-in: emails a one-time magic link (most secure default). */
 export async function signInWithMagicLink(email: string): Promise<void> {
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: window.location.origin },
+    options: { emailRedirectTo: appUrl() },
   });
   if (error) throw new Error(error.message);
 }
@@ -68,14 +71,14 @@ export async function signUpWithPassword(email: string, password: string): Promi
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: window.location.origin },
+    options: { emailRedirectTo: appUrl() },
   });
   if (error) throw new Error(error.message);
 }
 
 export async function sendPasswordReset(email: string): Promise<void> {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin,
+    redirectTo: appUrl(),
   });
   if (error) throw new Error(error.message);
 }
