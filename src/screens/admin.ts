@@ -8,7 +8,7 @@ import {
   getMyRole,
   listAllMembers,
   setMemberRole,
-  deleteMember,
+  adminAddMember,
   listProfessionCategories,
   addProfessionCategory,
   deleteProfessionCategory,
@@ -22,12 +22,12 @@ export async function mountAdmin(root: HTMLElement): Promise<void> {
   root.append(wrap);
 
   const role = await getMyRole();
-  if (role !== 'admin' && role !== 'officer') {
+  if (role !== 'admin') {
     wrap.append(el('p', { class: 'err' }, ['Du hast keinen Zugriff auf diesen Bereich.']));
     return;
   }
 
-  if (role === 'admin') wrap.append(await renderMembers());
+  wrap.append(await renderMembers());
   wrap.append(await renderCategories(role));
 }
 
@@ -58,25 +58,42 @@ async function renderMembers(): Promise<HTMLElement> {
           toast((e as Error).message, false);
         }
       });
-      const del = el('button', { class: 'link danger', type: 'button' }, ['Entfernen']);
-      del.addEventListener('click', async () => {
-        if (!confirm(`${m.first_name} ${m.last_name} entfernen? Dies kann nicht rückgängig gemacht werden.`)) return;
-        try {
-          await deleteMember(m.id);
-          toast('Mitglied entfernt');
-          await refresh();
-        } catch (e) {
-          toast((e as Error).message, false);
-        }
-      });
       list.append(
         el('div', { class: 'row' }, [
           el('span', {}, [`${m.first_name} ${m.last_name}`]),
-          el('div', { class: 'inline' }, [sel, del]),
+          sel,
         ]),
       );
     }
   };
+
+  // Add a new (unclaimed) member.
+  const addForm = el('form', { class: 'grid2' }, [
+    field('Vorname', el('input', { name: 'first_name', required: true })),
+    field('Nachname', el('input', { name: 'last_name', required: true })),
+    field('E-Mail', el('input', { name: 'email', type: 'email', required: true })),
+    field('Telefon', el('input', { name: 'phone', type: 'tel' })),
+  ]);
+  addForm.append(el('button', { type: 'submit', class: 'primary' }, ['Mitglied hinzufügen']));
+  addForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = new FormData(addForm);
+    try {
+      await adminAddMember({
+        first_name: String(f.get('first_name')),
+        last_name: String(f.get('last_name')),
+        email: String(f.get('email')),
+        phone: (f.get('phone') as string) || null,
+      });
+      addForm.reset();
+      toast('Mitglied hinzugefügt');
+      await refresh();
+    } catch (err) {
+      toast((err as Error).message, false);
+    }
+  });
+
+  card.append(el('h3', {}, ['Neues Mitglied']), addForm);
   await refresh();
   return card;
 }

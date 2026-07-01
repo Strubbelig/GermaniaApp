@@ -351,6 +351,18 @@ export const setMemberRole = async (target: string, role: Role) => {
   const m = members.find((x) => x.id === target);
   if (m) m.role = role;
 };
+export const adminAddMember = async (input: any): Promise<Member> => {
+  const m: Member = {
+    id: uid(), auth_user_id: null, salutation: null, first_name: input.first_name, last_name: input.last_name,
+    maiden_name: null, date_of_birth: input.date_of_birth ?? '1900-01-01', date_of_death: null, gender: null,
+    email: input.email, phone: input.phone ?? null, website: null, photo_url: null, bio: null, trivia: null,
+    member_since: null, entry_semester: input.entry_semester ?? null, fencing_bouts: 0, corp_status: 'fux',
+    status: 'active', consented: false, role: 'member',
+    visibility: 'members', show_email: true, show_address: true, show_family: true,
+    created_at: now, updated_at: now,
+  };
+  members.push(m); return m;
+};
 export const deleteMember = async (id: string) => { remove(members, id); };
 export const addProfessionCategory = async (name: string, slug: string, parentId: string | null = null) => {
   const c: ProfessionCategory = { id: slug || uid(), parent_id: parentId, name, slug, created_at: now };

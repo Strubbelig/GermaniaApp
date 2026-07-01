@@ -11,7 +11,6 @@ import {
   createGathering,
   rsvpToGathering,
   getMyMember,
-  isStaff,
   isAdmin,
 } from '../lib/api';
 import type { Gathering, GatheringCategory, Member, Rsvp } from '../lib/database.types';
@@ -39,8 +38,8 @@ const catLabel = (c: GatheringCategory) => CATS[c as keyof typeof CATS]?.label ?
 export async function mountGatherings(root: HTMLElement): Promise<void> {
   clear(root);
   const me = await getMyMember().catch(() => null);
-  const staff = await isStaff().catch(() => false);
   const admin = await isAdmin().catch(() => false);
+  const staff = admin;   // events are admin-only
 
   const tabs = el('div', { class: 'tabs' }, []);
   const panel = el('div', { class: 'panel' });

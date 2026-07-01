@@ -729,13 +729,16 @@ begin
 end;
 $$;
 
--- Admins can read, update or delete ANY member (incl. non-consented / imported).
+-- Admins can read, update and ADD any member (incl. non-consented / imported).
 create policy member_admin_read on member for select to authenticated
     using (is_admin());
 create policy member_admin_update on member for update to authenticated
     using (is_admin()) with check (is_admin());
-create policy member_admin_delete on member for delete to authenticated
-    using (is_admin());
+create policy member_admin_insert on member for insert to authenticated
+    with check (is_admin());
+-- NOTE: there is deliberately NO member DELETE policy. Removing a member is done
+-- only by the database owner (Supabase SQL editor / service role), never through
+-- the app — not even by app admins.
 
 -- Admins can write any member's addresses / professions / relatives.
 create policy address_admin_write on address for all to authenticated
@@ -747,19 +750,19 @@ create policy relative_admin_write on relative for all to authenticated
 create policy office_history_admin_write on office_history for all to authenticated
     using (is_admin()) with check (is_admin());
 
--- Staff (officer or admin) manage the profession taxonomy.
+-- Admins manage the profession taxonomy.
 create policy pc_staff_write on profession_category for all to authenticated
-    using (is_staff()) with check (is_staff());
+    using (is_admin()) with check (is_admin());
 
--- Staff manage any gathering (in addition to the host-only policies above).
+-- Admins create / edit / delete events.
 create policy gathering_staff_write on gathering for all to authenticated
-    using (is_staff()) with check (is_staff());
+    using (is_admin()) with check (is_admin());
 
--- Admins set the Stocherkahn season; staff can manage any booking.
+-- Admins set the Stocherkahn season and manage any booking.
 create policy season_staff_write on stocherkahn_season for all to authenticated
     using (is_admin()) with check (is_admin());
 create policy booking_staff_write on stocherkahn_booking for all to authenticated
-    using (is_staff()) with check (is_staff());
+    using (is_admin()) with check (is_admin());
 
 -- =============================================================================
 -- OFFICES / ÄMTER  (Sprecher, Fechtwart, Schriftwart)

@@ -696,6 +696,32 @@ export async function setMemberRole(target: string, role: Role): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** Admin: add a new (unclaimed) member. They claim it later by verified phone. */
+export async function adminAddMember(input: {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  entry_semester?: string | null;
+}): Promise<Member> {
+  const res = await supabase
+    .from('member')
+    .insert({
+      first_name: input.first_name,
+      last_name: input.last_name,
+      email: input.email,
+      phone: input.phone ?? null,
+      date_of_birth: input.date_of_birth ?? '1900-01-01',
+      entry_semester: input.entry_semester ?? null,
+      consented: false,
+    })
+    .select('*')
+    .single();
+  return unwrap(res);
+}
+
+/** Deleting members is DB-owner-only (no RLS delete policy); kept for demo/tests. */
 export async function deleteMember(id: string): Promise<void> {
   const { error } = await supabase.from('member').delete().eq('id', id);
   if (error) throw new Error(error.message);

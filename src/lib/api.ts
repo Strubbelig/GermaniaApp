@@ -96,6 +96,7 @@ export const isAdmin = impl.isAdmin;
 export const isStaff = impl.isStaff;
 export const listAllMembers = impl.listAllMembers;
 export const setMemberRole = impl.setMemberRole;
+export const adminAddMember = impl.adminAddMember;
 export const deleteMember = impl.deleteMember;
 export const addProfessionCategory = impl.addProfessionCategory;
 export const deleteProfessionCategory = impl.deleteProfessionCategory;

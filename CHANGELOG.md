@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.8.0] — Permission model tightened — 2026-07
+
+### Changed
+- **Members** can read everything but only write their own profile (+ family,
+  Chargen), send Ganze, and book the Stocherkahn.
+- **Content management is admin-only** (was officer+admin): creating/deleting
+  events, setting the Stocherkahn season, managing the profession taxonomy, and
+  managing any booking.
+- Admin tab and event creation are gated on `is_admin`.
+
+### Added
+- Admins can **add members** (new "Mitglied hinzufügen" form + `member_admin_insert`
+  policy).
+- Migration `supabase/migrations/0001_tighten_permissions.sql` to apply the policy
+  changes to an existing database.
+
+### Removed
+- No app path to **delete a member** — not even for admins. Member deletion is
+  database-owner-only (Supabase SQL editor / service role). Dropped
+  `member_admin_delete` and the delete button in the admin screen.
+
+### Fixed
+- Auth redirect now targets the app's full path (`/GermaniaApp/`), not the domain
+  root, so magic/reset links land on the app.
+- `members_by_profession` SELECT DISTINCT ordering; `seed.sql` uuid cast;
+  re-runnable `storage.sql`.
+
+
 ## [0.7.1] — All-male roster + Verbindungsstatus — 2026-07
 
 ### Changed

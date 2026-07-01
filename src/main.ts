@@ -3,7 +3,7 @@
 // Keine Sitzung → Anmeldung. Angemeldet → App mit Kopfzeile (Wappen) + Tab-Leiste.
 // =============================================================================
 import './styles.css';
-import { DEMO, hasSession, onAuthChange, signOut, isStaff } from './lib/api';
+import { DEMO, hasSession, onAuthChange, signOut, isAdmin } from './lib/api';
 import { mountAuth } from './screens/auth';
 import { mountProfileEditor } from './screens/profile';
 import { mountDirectory } from './screens/directory';
@@ -82,7 +82,7 @@ function navBtn(label: string, route: Route, current: Route): HTMLButtonElement 
 }
 
 async function showSignedIn(): Promise<void> {
-  staff = await isStaff().catch(() => false);
+  staff = await isAdmin().catch(() => false);   // "Admin" tab is admin-only
   renderApp('members');
 }
 
