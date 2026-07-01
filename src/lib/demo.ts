@@ -23,16 +23,16 @@ interface Src {
 }
 
 const SRC: Src[] = [
-  { id: 'm1', sal: 'Dr.', first: 'Anna', last: 'Berger', email: 'anna.berger@example.org', phone: '+49 30 1110001', dob: '1978-03-12', gender: 'female', bio: 'Urologin in Berlin.', street: 'Hauptstrasse 5', postal: '10115', city: 'Berlin', region: 'Berlin', cc: 'DE', lat: 52.52, lon: 13.405, profTitle: 'Urologin', catName: 'Urologie', catSlug: 'urology', org: 'Charité Berlin' },
+  { id: 'm1', sal: 'Dr.', first: 'Anton', last: 'Berger', email: 'anton.berger@example.org', phone: '+49 30 1110001', dob: '1978-03-12', gender: 'male', bio: 'Urologe in Berlin.', street: 'Hauptstrasse 5', postal: '10115', city: 'Berlin', region: 'Berlin', cc: 'DE', lat: 52.52, lon: 13.405, profTitle: 'Urologe', catName: 'Urologie', catSlug: 'urology', org: 'Charité Berlin' },
   { id: 'm2', sal: '', first: 'Thomas', last: 'Klein', email: 'thomas.klein@example.org', phone: '+49 89 1110002', dob: '1982-07-08', gender: 'male', bio: 'Immobilienanwalt in München.', street: 'Leopoldstrasse 12', postal: '80802', city: 'München', region: 'Bayern', cc: 'DE', lat: 48.1351, lon: 11.582, profTitle: 'Auf Immobilienrecht spezialisierter Anwalt', catName: 'Immobilienrecht', catSlug: 'real-estate-law', org: 'Klein & Partner' },
-  { id: 'm3', sal: 'Dr.', first: 'Sophie', last: 'Wagner', email: 'sophie.wagner@example.org', phone: '+49 40 1110003', dob: '1985-11-22', gender: 'female', bio: 'Kinderkardiologin in Hamburg.', street: 'Elbchaussee 100', postal: '22763', city: 'Hamburg', region: 'Hamburg', cc: 'DE', lat: 53.5511, lon: 9.9937, profTitle: 'Kinderkardiologin', catName: 'Kinderkardiologie', catSlug: 'pediatric-cardiology', org: 'UKE Hamburg' },
+  { id: 'm3', sal: 'Dr.', first: 'Stefan', last: 'Wagner', email: 'stefan.wagner@example.org', phone: '+49 40 1110003', dob: '1985-11-22', gender: 'male', bio: 'Kinderkardiologe in Hamburg.', street: 'Elbchaussee 100', postal: '22763', city: 'Hamburg', region: 'Hamburg', cc: 'DE', lat: 53.5511, lon: 9.9937, profTitle: 'Kinderkardiologe', catName: 'Kinderkardiologie', catSlug: 'pediatric-cardiology', org: 'UKE Hamburg' },
   { id: 'm4', sal: '', first: 'Markus', last: 'Vogel', email: 'markus.vogel@example.org', phone: '+41 44 1110004', dob: '1975-01-30', gender: 'male', bio: 'Steueranwalt in Zürich.', street: 'Bahnhofstrasse 3', postal: '8001', city: 'Zürich', region: 'Zürich', cc: 'CH', lat: 47.3769, lon: 8.5417, profTitle: 'Steueranwalt', catName: 'Steuerrecht', catSlug: 'tax-law', org: 'Vogel Steuerrecht' },
-  { id: 'm5', sal: 'Dipl.-Ing.', first: 'Elena', last: 'Fischer', email: 'elena.fischer@example.org', phone: '+43 1 1110005', dob: '1983-05-17', gender: 'female', bio: 'Architektin in Wien.', street: 'Ringstrasse 22', postal: '1010', city: 'Wien', region: 'Wien', cc: 'AT', lat: 48.2082, lon: 16.3738, profTitle: 'Architektin', catName: 'Architektur', catSlug: 'architecture', org: 'Fischer Atelier' },
+  { id: 'm5', sal: 'Dipl.-Ing.', first: 'Erik', last: 'Fischer', email: 'erik.fischer@example.org', phone: '+43 1 1110005', dob: '1983-05-17', gender: 'male', bio: 'Architekt in Wien.', street: 'Ringstrasse 22', postal: '1010', city: 'Wien', region: 'Wien', cc: 'AT', lat: 48.2082, lon: 16.3738, profTitle: 'Architekt', catName: 'Architektur', catSlug: 'architecture', org: 'Fischer Atelier' },
   { id: 'm6', sal: '', first: 'David', last: 'Cohen', email: 'david.cohen@example.org', phone: '+1 212 1110006', dob: '1972-09-03', gender: 'male', bio: 'Investmentbanker in New York.', street: '5th Avenue 700', postal: '10019', city: 'New York', region: 'NY', cc: 'US', lat: 40.7128, lon: -74.006, profTitle: 'Investmentbanker', catName: 'Finanzen', catSlug: 'finance', org: 'Cohen Capital' },
-  { id: 'm7', sal: 'Dr.', first: 'Charlotte', last: 'Bauer', email: 'charlotte.bauer@example.org', phone: '+44 20 1110007', dob: '1988-02-14', gender: 'female', bio: 'Dermatologin in London.', street: 'Baker Street 21', postal: 'NW1', city: 'London', region: 'England', cc: 'GB', lat: 51.5074, lon: -0.1278, profTitle: 'Dermatologin', catName: 'Dermatologie', catSlug: 'dermatology', org: 'Harley Street Clinic' },
+  { id: 'm7', sal: 'Dr.', first: 'Christian', last: 'Bauer', email: 'christian.bauer@example.org', phone: '+44 20 1110007', dob: '1988-02-14', gender: 'male', bio: 'Dermatologe in London.', street: 'Baker Street 21', postal: 'NW1', city: 'London', region: 'England', cc: 'GB', lat: 51.5074, lon: -0.1278, profTitle: 'Dermatologe', catName: 'Dermatologie', catSlug: 'dermatology', org: 'Harley Street Clinic' },
   { id: 'm8', sal: '', first: 'Johann', last: 'Schmidt', email: 'johann.schmidt@example.org', phone: '+49 69 1110008', dob: '1969-12-01', gender: 'male', bio: 'Notar in Frankfurt.', street: 'Zeil 50', postal: '60313', city: 'Frankfurt', region: 'Hessen', cc: 'DE', lat: 50.1109, lon: 8.6821, profTitle: 'Notar', catName: 'Notariat', catSlug: 'notary', org: 'Schmidt Notariat' },
   { id: 'm9', sal: 'Dr.', first: 'Lukas', last: 'Hoffmann', email: 'lukas.hoffmann@example.org', phone: '+49 221 1110009', dob: '1974-06-25', gender: 'male', bio: 'Orthopädischer Chirurg in Köln.', street: 'Domkloster 4', postal: '50667', city: 'Köln', region: 'NRW', cc: 'DE', lat: 50.9375, lon: 6.9603, profTitle: 'Orthopädischer Chirurg', catName: 'Orthopädische Chirurgie', catSlug: 'orthopedic-surgery', org: 'Köln Klinik' },
-  { id: 'm10', sal: '', first: 'Camille', last: 'Laurent', email: 'camille.laurent@example.org', phone: '+33 1 1110010', dob: '1986-10-09', gender: 'female', bio: 'Anwältin für geistiges Eigentum in Paris.', street: 'Rue de Rivoli 10', postal: '75001', city: 'Paris', region: 'Île-de-France', cc: 'FR', lat: 48.8566, lon: 2.3522, profTitle: 'Anwältin für geistiges Eigentum', catName: 'Recht des geistigen Eigentums', catSlug: 'ip-law', org: 'Laurent IP' },
+  { id: 'm10', sal: '', first: 'Claus', last: 'Laurent', email: 'claus.laurent@example.org', phone: '+33 1 1110010', dob: '1986-10-09', gender: 'male', bio: 'Anwalt für geistiges Eigentum in Paris.', street: 'Rue de Rivoli 10', postal: '75001', city: 'Paris', region: 'Île-de-France', cc: 'FR', lat: 48.8566, lon: 2.3522, profTitle: 'Anwalt für geistiges Eigentum', catName: 'Recht des geistigen Eigentums', catSlug: 'ip-law', org: 'Laurent IP' },
 ];
 
 // --- build the in-memory tables ---------------------------------------------
@@ -41,6 +41,7 @@ const members: Member[] = SRC.map((s) => ({
   maiden_name: null, date_of_birth: s.dob, date_of_death: null, gender: s.gender,
   email: s.email, phone: s.phone, website: null, photo_url: null, bio: s.bio, trivia: null,
   member_since: null, entry_semester: 'WS 2018/19', fencing_bouts: 0,
+  corp_status: ['m3', 'm10'].includes(s.id) ? 'fux' : ['m5', 'm6', 'm8', 'm9'].includes(s.id) ? 'philister' : 'bursch',
   status: 'active', consented: true,
   role: s.id === 'm1' ? 'admin' : s.id === 'm4' ? 'officer' : 'member',
   visibility: 'members', show_email: true, show_address: true, show_family: true,
@@ -52,7 +53,7 @@ members.push({
   maiden_name: null, date_of_birth: '1921-05-04', date_of_death: '1998-11-12', gender: 'male',
   email: 'wilhelm.stark@example.org', phone: null, website: null, photo_url: null,
   bio: null, trivia: 'Mitbegründer des Nachkriegs-Convents; verfasste die Mensurchronik und sammelte über 300 Studentenlieder.',
-  member_since: null, entry_semester: 'WS 1946/47', fencing_bouts: 4, status: 'deceased', consented: false, role: 'member',
+  member_since: null, entry_semester: 'WS 1946/47', fencing_bouts: 4, corp_status: 'philister', status: 'deceased', consented: false, role: 'member',
   visibility: 'members', show_email: false, show_address: false, show_family: false,
   created_at: now, updated_at: now,
 });
@@ -89,7 +90,7 @@ const officeHistory: DemoCharge[] = [
 const abbr = (c: string) => (c === 'sprecher' ? 'x' : c === 'fechtwart' ? 'xx' : c === 'schriftwart' ? 'xxx' : c);
 
 const relatives: Relative[] = [
-  rel('m1', 'spouse', 'Karl', 'Berger', 'male', '1979-02-14', 'Hauptstrasse 5', '10115', 'Berlin', 'DE'),
+  rel('m1', 'spouse', 'Karla', 'Berger', 'female', '1979-02-14', 'Hauptstrasse 5', '10115', 'Berlin', 'DE'),
   rel('m1', 'child', 'Lena', 'Berger', 'female', '2012-08-30', 'Hauptstrasse 5', '10115', 'Berlin', 'DE'),
   rel('m2', 'spouse', 'Maria', 'Klein', 'female', '1983-06-09', 'Leopoldstrasse 12', '80802', 'München', 'DE'),
   rel('m4', 'spouse', 'Nina', 'Vogel', 'female', '1981-11-25', 'Bahnhofstrasse 3', '8001', 'Zürich', 'CH'),
@@ -150,7 +151,7 @@ function directoryFor(m: Member): DirectoryEntry {
     email: m.email, phone: m.phone, photo_url: m.photo_url, status: m.status,
     visibility: m.visibility, show_email: m.show_email, date_of_birth: m.date_of_birth,
     age: ageFromDob(m.date_of_birth), entry_semester: m.entry_semester,
-    fencing_bouts: m.fencing_bouts,
+    corp_status: m.corp_status, fencing_bouts: m.fencing_bouts,
     charges: officeHistory.filter((h) => h.member_id === m.id)
       .map((h) => `${abbr(h.office_code)} ${h.semester ?? ''}`.trim()).join(', ') || null,
     profession: p?.title ?? null,
@@ -405,9 +406,9 @@ export const cancelBooking = async (id: string) => {
 // ganzen ("Ganzen vor!")
 interface DemoGanzen { id: string; from_member_id: string; to_member_id: string; message: string | null; before_photo_url: string | null; after_photo_url: string | null; reply_to: string | null; status: 'open' | 'acknowledged' | 'reciprocated' | 'declined'; acknowledged_at: string | null; email_sent_at: string | null; created_at: string; }
 const ganzen: DemoGanzen[] = [
-  { id: uid(), from_member_id: 'm4', to_member_id: 'm1', message: 'Lieber Bundesbruder Anna, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!', before_photo_url: null, after_photo_url: null, reply_to: null, status: 'open', acknowledged_at: null, email_sent_at: null, created_at: now },
-  { id: uid(), from_member_id: 'm1', to_member_id: 'm2', message: 'Lieber Bundesbruder Thomas, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Anna!', before_photo_url: null, after_photo_url: null, reply_to: null, status: 'acknowledged', acknowledged_at: now, email_sent_at: null, created_at: now },
-  { id: uid(), from_member_id: 'm4', to_member_id: 'm1', message: 'Lieber Bundesbruder Anna, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!', before_photo_url: null, after_photo_url: null, reply_to: null, status: 'reciprocated', acknowledged_at: now, email_sent_at: null, created_at: now },
+  { id: uid(), from_member_id: 'm4', to_member_id: 'm1', message: 'Lieber Bundesbruder Anton, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!', before_photo_url: null, after_photo_url: null, reply_to: null, status: 'open', acknowledged_at: null, email_sent_at: null, created_at: now },
+  { id: uid(), from_member_id: 'm1', to_member_id: 'm2', message: 'Lieber Bundesbruder Thomas, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Anton!', before_photo_url: null, after_photo_url: null, reply_to: null, status: 'acknowledged', acknowledged_at: now, email_sent_at: null, created_at: now },
+  { id: uid(), from_member_id: 'm4', to_member_id: 'm1', message: 'Lieber Bundesbruder Anton, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!', before_photo_url: null, after_photo_url: null, reply_to: null, status: 'reciprocated', acknowledged_at: now, email_sent_at: null, created_at: now },
 ];
 export const uploadGanzePhoto = async (file: File) => URL.createObjectURL(file);
 export const sendGanzen = async (input: any): Promise<DemoGanzen> => {

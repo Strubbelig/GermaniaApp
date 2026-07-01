@@ -29,21 +29,21 @@ on conflict (slug) do nothing;
 
 -- --- Members -----------------------------------------------------------------
 insert into member (id, salutation, first_name, last_name, email, phone, member_since, date_of_birth, gender, bio) values
- ('a0000000-0000-0000-0000-000000000001','Dr.','Anna','Berger','anna.berger@example.org','+49 30 1110001','2016-04-01','1978-03-12','female','Urologin in Berlin.'),
+ ('a0000000-0000-0000-0000-000000000001','Dr.','Anton','Berger','anton.berger@example.org','+49 30 1110001','2016-04-01','1978-03-12','male','Urologe in Berlin.'),
  ('a0000000-0000-0000-0000-000000000002','','Thomas','Klein','thomas.klein@example.org','+49 89 1110002','2018-09-15','1982-07-08','male','Immobilienanwalt in München.'),
- ('a0000000-0000-0000-0000-000000000003','Dr.','Sophie','Wagner','sophie.wagner@example.org','+49 40 1110003','2020-01-20','1985-11-22','female','Kinderkardiologin in Hamburg.'),
+ ('a0000000-0000-0000-0000-000000000003','Dr.','Stefan','Wagner','stefan.wagner@example.org','+49 40 1110003','2020-01-20','1985-11-22','male','Kinderkardiologe in Hamburg.'),
  ('a0000000-0000-0000-0000-000000000004','','Markus','Vogel','markus.vogel@example.org','+41 44 1110004','2014-06-10','1975-01-30','male','Steueranwalt in Zürich.'),
- ('a0000000-0000-0000-0000-000000000005','Dipl.-Ing.','Elena','Fischer','elena.fischer@example.org','+43 1 1110005','2019-11-03','1983-05-17','female','Architektin in Wien.'),
+ ('a0000000-0000-0000-0000-000000000005','Dipl.-Ing.','Erik','Fischer','erik.fischer@example.org','+43 1 1110005','2019-11-03','1983-05-17','male','Architekt in Wien.'),
  ('a0000000-0000-0000-0000-000000000006','','David','Cohen','david.cohen@example.org','+1 212 1110006','2017-03-22','1972-09-03','male','Investmentbanker in New York.'),
- ('a0000000-0000-0000-0000-000000000007','Dr.','Charlotte','Bauer','charlotte.bauer@example.org','+44 20 1110007','2021-07-12','1988-02-14','female','Dermatologin in London.'),
+ ('a0000000-0000-0000-0000-000000000007','Dr.','Christian','Bauer','christian.bauer@example.org','+44 20 1110007','2021-07-12','1988-02-14','male','Dermatologe in London.'),
  ('a0000000-0000-0000-0000-000000000008','','Johann','Schmidt','johann.schmidt@example.org','+49 69 1110008','2015-02-28','1969-12-01','male','Notar in Frankfurt.'),
  ('a0000000-0000-0000-0000-000000000009','Dr.','Lukas','Hoffmann','lukas.hoffmann@example.org','+49 221 1110009','2013-10-05','1974-06-25','male','Orthopädischer Chirurg in Köln.'),
- ('a0000000-0000-0000-0000-00000000000a','','Camille','Laurent','camille.laurent@example.org','+33 1 1110010','2022-05-18','1986-10-09','female','Anwältin für geistiges Eigentum in Paris.')
+ ('a0000000-0000-0000-0000-00000000000a','','Claus','Laurent','claus.laurent@example.org','+33 1 1110010','2022-05-18','1986-10-09','male','Anwalt für geistiges Eigentum in Paris.')
 on conflict (id) do nothing;
 
 -- Office holders are admins (Sprecher, Fechtwart, Schriftwart). See offices below.
 update member set role = 'admin' where id in (
-  'a0000000-0000-0000-0000-000000000001',   -- Anna  (Sprecher)
+  'a0000000-0000-0000-0000-000000000001',   -- Anton  (Sprecher)
   'a0000000-0000-0000-0000-000000000004',   -- Markus (Fechtwart)
   'a0000000-0000-0000-0000-000000000002'    -- Thomas (Schriftwart)
 );
@@ -59,6 +59,17 @@ update member set entry_semester = to_char(member_since, '"WS "YYYY') where memb
 update member set fencing_bouts = 3 where id = 'a0000000-0000-0000-0000-000000000001';
 update member set fencing_bouts = 5 where id = 'a0000000-0000-0000-0000-000000000004';
 update member set fencing_bouts = 2 where id = 'a0000000-0000-0000-0000-000000000002';
+
+-- Verbindungsstatus: fux (Neu) → bursch (nach Reception) → philister (nach dem Studium).
+update member set corp_status = 'bursch'    where id in (
+  'a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002',
+  'a0000000-0000-0000-0000-000000000004','a0000000-0000-0000-0000-000000000007');
+update member set corp_status = 'fux'       where id in (
+  'a0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-00000000000a');
+update member set corp_status = 'philister' where id in (
+  'a0000000-0000-0000-0000-000000000005','a0000000-0000-0000-0000-000000000006',
+  'a0000000-0000-0000-0000-000000000008','a0000000-0000-0000-0000-000000000009',
+  'a0000000-0000-0000-0000-0000000000d1');
 
 -- Chargen history (past leadership terms).
 insert into office_history (member_id, office_code, semester) values
@@ -92,22 +103,22 @@ insert into address (member_id, label, is_primary, street, postal_code, city, re
 insert into member_profession (member_id, category_id, title, organization, is_primary)
 select m.member_id, c.id, m.title, m.org, true
 from (values
- ('a0000000-0000-0000-0000-000000000001','urology','Urologin','Charité Berlin'),
+ ('a0000000-0000-0000-0000-000000000001','urology','Urologe','Charité Berlin'),
  ('a0000000-0000-0000-0000-000000000002','real-estate-law','Auf Immobilienrecht spezialisierter Anwalt','Klein & Partner'),
- ('a0000000-0000-0000-0000-000000000003','pediatric-cardiology','Kinderkardiologin','UKE Hamburg'),
+ ('a0000000-0000-0000-0000-000000000003','pediatric-cardiology','Kinderkardiologe','UKE Hamburg'),
  ('a0000000-0000-0000-0000-000000000004','tax-law','Steueranwalt','Vogel Steuerrecht'),
- ('a0000000-0000-0000-0000-000000000005','architecture','Architektin','Fischer Atelier'),
+ ('a0000000-0000-0000-0000-000000000005','architecture','Architekt','Fischer Atelier'),
  ('a0000000-0000-0000-0000-000000000006','finance','Investmentbanker','Cohen Capital'),
- ('a0000000-0000-0000-0000-000000000007','dermatology','Dermatologin','Harley Street Clinic'),
+ ('a0000000-0000-0000-0000-000000000007','dermatology','Dermatologe','Harley Street Clinic'),
  ('a0000000-0000-0000-0000-000000000008','notary','Notar','Schmidt Notariat'),
  ('a0000000-0000-0000-0000-000000000009','orthopedic-surgery','Orthopädischer Chirurg','Köln Klinik'),
- ('a0000000-0000-0000-0000-00000000000a','ip-law','Anwältin für geistiges Eigentum','Laurent IP')
+ ('a0000000-0000-0000-0000-00000000000a','ip-law','Anwalt für geistiges Eigentum','Laurent IP')
 ) as m(member_id, slug, title, org)
 join profession_category c on c.slug = m.slug;
 
 -- --- Relatives (spouses & children) ------------------------------------------
 insert into relative (member_id, relationship, first_name, last_name, gender, date_of_birth, street, postal_code, city, country_code, geo) values
- ('a0000000-0000-0000-0000-000000000001','spouse','Karl','Berger','male','1979-02-14','Hauptstrasse 5','10115','Berlin','DE', st_setsrid(st_makepoint(13.4050,52.5200),4326)::geography),
+ ('a0000000-0000-0000-0000-000000000001','spouse','Karla','Berger','female','1979-02-14','Hauptstrasse 5','10115','Berlin','DE', st_setsrid(st_makepoint(13.4050,52.5200),4326)::geography),
  ('a0000000-0000-0000-0000-000000000001','child','Lena','Berger','female','2012-08-30','Hauptstrasse 5','10115','Berlin','DE', st_setsrid(st_makepoint(13.4050,52.5200),4326)::geography),
  ('a0000000-0000-0000-0000-000000000002','spouse','Maria','Klein','female','1983-06-09','Leopoldstrasse 12','80802','München','DE', st_setsrid(st_makepoint(11.5820,48.1351),4326)::geography),
  ('a0000000-0000-0000-0000-000000000004','spouse','Nina','Vogel','female','1981-11-25','Bahnhofstrasse 3','8001','Zürich','CH', st_setsrid(st_makepoint(8.5417,47.3769),4326)::geography),
@@ -152,11 +163,11 @@ on conflict (code) do nothing;
 -- --- Ganzen (demo toasts) ----------------------------------------------------
 insert into ganzen (from_member_id, to_member_id, message, status) values
  ('a0000000-0000-0000-0000-000000000004','a0000000-0000-0000-0000-000000000001',
-  'Lieber Bundesbruder Anna, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!','open'),
+  'Lieber Bundesbruder Anton, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!','open'),
  ('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002',
-  'Lieber Bundesbruder Thomas, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Anna!','acknowledged'),
+  'Lieber Bundesbruder Thomas, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Anton!','acknowledged'),
  ('a0000000-0000-0000-0000-000000000004','a0000000-0000-0000-0000-000000000001',
-  'Lieber Bundesbruder Anna, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!','reciprocated');
+  'Lieber Bundesbruder Anton, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!','reciprocated');
 
 -- =============================================================================
 -- Quick checks after loading:

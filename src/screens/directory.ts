@@ -32,7 +32,10 @@ interface Row {
   extra?: string;
   charges?: string | null;
   fencing?: number;
+  corpStatus?: string | null;
 }
+
+const CORP_LABEL: Record<string, string> = { fux: 'Fux', bursch: 'Aktiver Bursch', philister: 'Philister' };
 
 // Two crossed student fencing swords (Schläger).
 const SWORDS = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
@@ -102,7 +105,11 @@ function renderResults(host: HTMLElement, rows: Row[]): void {
     const meta = [r.profession, [r.city, r.country].filter(Boolean).join(', '), r.extra]
       .filter(Boolean)
       .join(' · ');
-    const info = el('div', {}, [el('strong', {}, [r.name]), el('div', { class: 'muted' }, [meta])]);
+    const nameLine = el('div', { class: 'nameline' }, [el('strong', {}, [r.name])]);
+    if (r.corpStatus && CORP_LABEL[r.corpStatus]) {
+      nameLine.append(el('span', { class: `corpbadge ${r.corpStatus}` }, [CORP_LABEL[r.corpStatus]]));
+    }
+    const info = el('div', {}, [nameLine, el('div', { class: 'muted' }, [meta])]);
     if (r.charges) info.append(el('div', { class: 'charges' }, [r.charges]));
     if (r.fencing && r.fencing > 0) {
       const f = el('div', { class: 'fencing' });
@@ -287,7 +294,7 @@ function fromDirectory(d: DirectoryEntry): Row {
     profession: d.profession, city: d.city, country: d.country_code,
     extra: [d.age != null ? `${d.age} Jahre` : null, d.entry_semester ? `seit ${d.entry_semester}` : null]
       .filter(Boolean).join(' · ') || undefined,
-    charges: d.charges, fencing: d.fencing_bouts,
+    charges: d.charges, fencing: d.fencing_bouts, corpStatus: d.corp_status,
   };
 }
 function fromProfession(p: ProfessionMatch): Row {

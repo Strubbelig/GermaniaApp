@@ -63,6 +63,9 @@ create table member (
     member_since    date,
     entry_semester  text,                       -- semester they joined, e.g. 'WS 2016/17'
     fencing_bouts   int not null default 0,     -- number of Fechtpartien (Mensuren)
+    -- Verbindungsstatus: fux (on entry) → bursch (after Reception) → philister (after studies)
+    corp_status     text not null default 'bursch'
+                    check (corp_status in ('fux','bursch','philister')),
     status          text not null default 'active'
                     check (status in ('active','inactive','deceased','pending')),
 
@@ -337,6 +340,7 @@ select
     m.date_of_birth,
     age_years(m.date_of_birth) as age,
     m.entry_semester,
+    m.corp_status,
     m.fencing_bouts,
     (select string_agg(office_abbr(oh.office_code) || ' ' || coalesce(oh.semester, ''), ', '
                        order by oh.semester)

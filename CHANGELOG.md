@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.1] — All-male roster + Verbindungsstatus — 2026-07
+
+### Changed
+- Demo and seed members are now all men (an all-male Verbindung); spouses/children
+  remain as they are. All profession/city/bio strings are German.
+
+### Added
+- **Verbindungsstatus** on every member — Fux (on entry) → Aktiver Bursch (after
+  Reception) → Philister (after studies) — editable in the profile and shown as a
+  badge on the name tag in the directory.
+
+
 All notable changes to GermaniaApp. Newest first. Dates are approximate build dates.
 
 ## [0.7.0] — Chargen, Fechtpartien, "Ganzen vor!" — 2026-07

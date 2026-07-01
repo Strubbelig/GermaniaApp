@@ -6,6 +6,7 @@
 // =============================================================================
 
 export type Role = 'member' | 'officer' | 'admin';
+export type CorpStatus = 'fux' | 'bursch' | 'philister';
 export type GatheringCategory = 'stammtisch' | 'semesterprogramm' | 'pauktag' | 'other';
 export type OfficeCode = 'sprecher' | 'fechtwart' | 'schriftwart';
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';
@@ -41,6 +42,7 @@ export interface Database {
           member_since: string | null;
           entry_semester: string | null;
           fencing_bouts: number;
+          corp_status: CorpStatus;
           status: MemberStatus;
           consented: boolean;
           role: Role;
@@ -298,6 +300,7 @@ export interface Database {
           date_of_birth: string;
           age: number | null;
           entry_semester: string | null;
+          corp_status: CorpStatus;
           fencing_bouts: number;
           charges: string | null;
           profession: string | null;
