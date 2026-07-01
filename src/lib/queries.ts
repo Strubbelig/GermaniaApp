@@ -219,7 +219,8 @@ export async function geocodeAddress(parts: {
 export async function upsertMyAddress(input: AddressInput): Promise<Address> {
   let { lat, lon } = input;
   if (lat == null || lon == null) {
-    const geo = await geocodeAddress(input);
+    // Geocoding is best-effort: if it fails, still save the address (no map pin).
+    const geo = await geocodeAddress(input).catch(() => null);
     if (geo) ({ lat, lon } = geo);
   }
   const row = {
