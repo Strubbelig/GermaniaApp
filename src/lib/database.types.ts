@@ -30,14 +30,19 @@ export interface Database {
           last_name: string;
           maiden_name: string | null;
           date_of_birth: string | null;
+          date_of_death: string | null;
           gender: Gender | null;
           email: string;
           phone: string | null;
           website: string | null;
           photo_url: string | null;
           bio: string | null;
+          trivia: string | null;
           member_since: string | null;
+          entry_semester: string | null;
+          fencing_bouts: number;
           status: MemberStatus;
+          consented: boolean;
           role: Role;
           visibility: Visibility;
           show_email: boolean;
@@ -46,12 +51,9 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database['public']['Tables']['member']['Row'],
-          'id' | 'created_at' | 'updated_at'
-        > &
-          Partial<Pick<Database['public']['Tables']['member']['Row'], 'id'>>;
-        Update: Partial<Database['public']['Tables']['member']['Insert']>;
+        Insert: Partial<Database['public']['Tables']['member']['Row']> &
+          Pick<Database['public']['Tables']['member']['Row'], 'first_name' | 'last_name' | 'email' | 'date_of_birth'>;
+        Update: Partial<Database['public']['Tables']['member']['Row']>;
       };
       address: {
         Row: {
@@ -212,6 +214,35 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['stocherkahn_booking']['Row']>;
       };
     };
+      ganzen: {
+        Row: {
+          id: string;
+          from_member_id: string;
+          to_member_id: string;
+          message: string | null;
+          before_photo_url: string | null;
+          after_photo_url: string | null;
+          reply_to: string | null;
+          status: 'open' | 'acknowledged' | 'reciprocated' | 'declined';
+          acknowledged_at: string | null;
+          email_sent_at: string | null;
+          created_at: string;
+        };
+        Insert: Pick<Database['public']['Tables']['ganzen']['Row'], 'from_member_id' | 'to_member_id'> &
+          Partial<Database['public']['Tables']['ganzen']['Row']>;
+        Update: Partial<Database['public']['Tables']['ganzen']['Row']>;
+      };
+      office_history: {
+        Row: {
+          id: string;
+          member_id: string;
+          office_code: OfficeCode;
+          semester: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['office_history']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['office_history']['Row']>;
+      };
       office: {
         Row: {
           id: string;
@@ -266,6 +297,9 @@ export interface Database {
           show_email: boolean;
           date_of_birth: string;
           age: number | null;
+          entry_semester: string | null;
+          fencing_bouts: number;
+          charges: string | null;
           profession: string | null;
           profession_category: string | null;
           street: string | null;
@@ -277,6 +311,39 @@ export interface Database {
           geo: string | null;
           latitude: number | null;
           longitude: number | null;
+        };
+      };
+      ganze_highscore: {
+        Row: { member_id: string; name: string; ganze: number };
+      };
+      ganze_feed: {
+        Row: {
+          id: string;
+          created_at: string;
+          message: string | null;
+          before_photo_url: string | null;
+          after_photo_url: string | null;
+          status: string;
+          from_member_id: string;
+          from_name: string;
+          to_member_id: string;
+          to_name: string;
+        };
+      };
+      deceased_directory: {
+        Row: {
+          id: string;
+          salutation: string | null;
+          first_name: string;
+          last_name: string;
+          maiden_name: string | null;
+          date_of_birth: string | null;
+          date_of_death: string | null;
+          photo_url: string | null;
+          trivia: string | null;
+          birth_year: number | null;
+          death_year: number | null;
+          profession: string | null;
         };
       };
       member_contact_export: {
@@ -341,6 +408,14 @@ export interface Database {
         Args: { p_office: string; p_semester: string };
         Returns: undefined;
       };
+      claim_my_member: {
+        Args: Record<string, never>;
+        Returns: string | null;
+      };
+      ganze_partners: {
+        Args: { p_member: string };
+        Returns: { partner_id: string; partner_name: string; together: number }[];
+      };
     };
   };
 }
@@ -356,9 +431,15 @@ export type Gathering = Database['public']['Tables']['gathering']['Row'];
 export type GatheringAttendance = Database['public']['Tables']['gathering_attendance']['Row'];
 export type StocherkahnSeason = Database['public']['Tables']['stocherkahn_season']['Row'];
 export type StocherkahnBooking = Database['public']['Tables']['stocherkahn_booking']['Row'];
+export type OfficeHistory = Database['public']['Tables']['office_history']['Row'];
+export type Ganzen = Database['public']['Tables']['ganzen']['Row'];
+export type GanzeHighscore = Database['public']['Views']['ganze_highscore']['Row'];
+export type GanzeFeed = Database['public']['Views']['ganze_feed']['Row'];
+export type GanzePartner = Database['public']['Functions']['ganze_partners']['Returns'][number];
 export type Office = Database['public']['Views']['office_directory']['Row'];
 export type OfficeTransfer = Database['public']['Tables']['office_transfer']['Row'];
 export type DirectoryEntry = Database['public']['Views']['member_directory']['Row'];
+export type DeceasedEntry = Database['public']['Views']['deceased_directory']['Row'];
 export type ContactExportRow = Database['public']['Views']['member_contact_export']['Row'];
 export type NearbyMember = Database['public']['Functions']['members_near']['Returns'][number];
 export type ProfessionMatch = Database['public']['Functions']['members_by_profession']['Returns'][number];

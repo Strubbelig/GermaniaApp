@@ -48,6 +48,33 @@ update member set role = 'admin' where id in (
   'a0000000-0000-0000-0000-000000000002'    -- Thomas (Schriftwart)
 );
 
+-- Demo: the sample living members have opted in (so they show in the directory).
+-- Real imported members start with consented = false until they claim + opt in.
+update member set consented = true where status = 'active';
+
+-- Entry semester (demo placeholder derived from member_since).
+update member set entry_semester = to_char(member_since, '"WS "YYYY') where member_since is not null;
+
+-- Fechtpartien (demo counts).
+update member set fencing_bouts = 3 where id = 'a0000000-0000-0000-0000-000000000001';
+update member set fencing_bouts = 5 where id = 'a0000000-0000-0000-0000-000000000004';
+update member set fencing_bouts = 2 where id = 'a0000000-0000-0000-0000-000000000002';
+
+-- Chargen history (past leadership terms).
+insert into office_history (member_id, office_code, semester) values
+ ('a0000000-0000-0000-0000-000000000001','sprecher','WS 2019/20'),
+ ('a0000000-0000-0000-0000-000000000001','schriftwart','SS 2018'),
+ ('a0000000-0000-0000-0000-000000000004','fechtwart','WS 2020/21'),
+ ('a0000000-0000-0000-0000-000000000002','schriftwart','SS 2021');
+
+-- A deceased member with memorial trivia (appears in the Verstorbene tab only).
+insert into member (id, salutation, first_name, last_name, email, date_of_birth, date_of_death, gender, status, trivia, consented) values
+ ('a0000000-0000-0000-0000-0000000000d1','Prof. Dr.','Wilhelm','Stark','wilhelm.stark@example.org','1921-05-04','1998-11-12','male','deceased',
+  'Mitbegründer des Nachkriegs-Convents; verfasste die Mensurchronik und sammelte über 300 Studentenlieder.', false)
+on conflict (id) do nothing;
+insert into member_profession (member_id, title, is_primary)
+  values ('a0000000-0000-0000-0000-0000000000d1','Rechtshistoriker', true);
+
 -- --- Primary addresses (geocoded) --------------------------------------------
 insert into address (member_id, label, is_primary, street, postal_code, city, region, country_code, geo) values
  ('a0000000-0000-0000-0000-000000000001','home',true,'Hauptstrasse 5','10115','Berlin','Berlin','DE',     st_setsrid(st_makepoint(13.4050,52.5200),4326)::geography),
@@ -121,6 +148,15 @@ insert into office (code, title, current_holder_id, term_semester) values
  ('fechtwart','Fechtwart (xx)','a0000000-0000-0000-0000-000000000004','WS 2026/27'),
  ('schriftwart','Schriftwart (xxx)','a0000000-0000-0000-0000-000000000002','WS 2026/27')
 on conflict (code) do nothing;
+
+-- --- Ganzen (demo toasts) ----------------------------------------------------
+insert into ganzen (from_member_id, to_member_id, message, status) values
+ ('a0000000-0000-0000-0000-000000000004','a0000000-0000-0000-0000-000000000001',
+  'Lieber Bundesbruder Anna, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!','open'),
+ ('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002',
+  'Lieber Bundesbruder Thomas, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Anna!','acknowledged'),
+ ('a0000000-0000-0000-0000-000000000004','a0000000-0000-0000-0000-000000000001',
+  'Lieber Bundesbruder Anna, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!','reciprocated');
 
 -- =============================================================================
 -- Quick checks after loading:

@@ -50,6 +50,7 @@ create table member (
     last_name       text not null,
     maiden_name     text,
     date_of_birth   date not null,              -- required; age is derived from it
+    date_of_death   date,                       -- set for deceased members (memorial)
     gender          text check (gender in ('female','male','other','undisclosed')),
 
     email           text not null,
@@ -57,10 +58,17 @@ create table member (
     website         text,
     photo_url       text,                       -- Supabase Storage object URL
     bio             text,
+    trivia          text,                       -- free notes / fun facts (from import)
 
     member_since    date,
+    entry_semester  text,                       -- semester they joined, e.g. 'WS 2016/17'
+    fencing_bouts   int not null default 0,     -- number of Fechtpartien (Mensuren)
     status          text not null default 'active'
                     check (status in ('active','inactive','deceased','pending')),
+
+    -- Opt-in: imported/prefilled members are hidden until they claim their row
+    -- (by verified phone) AND opt in. Self-registered members set this to true.
+    consented       boolean not null default false,
 
     -- Access role. 'member' = normal; 'officer' = manage gatherings + taxonomy;
     -- 'admin' = full control over all members. See the ROLES section below.
@@ -264,6 +272,57 @@ returns int language sql stable as $$
                 else extract(year from age(current_date, dob))::int end;
 $$;
 
+-- Link the signed-in user to a prefilled (imported) member row by VERIFIED phone.
+-- Called after phone sign-in: if the user's confirmed phone matches an unclaimed
+-- row's phone (digits only), that row becomes theirs. Returns the member id or null.
+create or replace function claim_my_member()
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_uid uuid; v_phone text; v_id uuid;
+begin
+    v_uid := auth.uid();
+    if v_uid is null then return null; end if;
+    -- already linked?
+    select id into v_id from member where auth_user_id = v_uid;
+    if v_id is not null then return v_id; end if;
+    -- the user's verified phone (E.164 in auth.users), digits only
+    select regexp_replace(coalesce(phone, ''), '\D', '', 'g') into v_phone
+        from auth.users where id = v_uid;
+    if v_phone is null or v_phone = '' then return null; end if;
+    update member set auth_user_id = v_uid
+        where auth_user_id is null
+          and regexp_replace(coalesce(phone, ''), '\D', '', 'g') = v_phone
+        returning id into v_id;
+    return v_id;   -- null if no match (they register as a brand-new member)
+end;
+$$;
+
+-- =============================================================================
+-- OFFICE HISTORY (Chargen) — a member's past leadership terms (x / xx / xxx)
+-- Self-reported; shown under the member's name. Defined here (before the views)
+-- so member_directory can aggregate it.
+-- =============================================================================
+create table office_history (
+    id          uuid primary key default gen_random_uuid(),
+    member_id   uuid not null references member (id) on delete cascade,
+    office_code text not null check (office_code in ('sprecher','fechtwart','schriftwart')),
+    semester    text,                           -- e.g. 'WS 2019/20'
+    created_at  timestamptz not null default now()
+);
+create index on office_history (member_id);
+
+alter table office_history enable row level security;
+create policy office_history_read on office_history for select to authenticated using (true);
+create policy office_history_write on office_history for all to authenticated
+    using (member_id = current_member_id())
+    with check (member_id = current_member_id());
+
+-- Short abbreviation for an office code (x / xx / xxx).
+create or replace function office_abbr(code text)
+returns text language sql immutable as $$
+    select case code when 'sprecher' then 'x' when 'fechtwart' then 'xx'
+                     when 'schriftwart' then 'xxx' else code end;
+$$;
+
 -- =============================================================================
 -- SEARCH & EXPORT  (these back the app's main screens)
 -- =============================================================================
@@ -277,6 +336,11 @@ select
     m.email, m.phone, m.photo_url, m.status, m.visibility, m.show_email,
     m.date_of_birth,
     age_years(m.date_of_birth) as age,
+    m.entry_semester,
+    m.fencing_bouts,
+    (select string_agg(office_abbr(oh.office_code) || ' ' || coalesce(oh.semester, ''), ', '
+                       order by oh.semester)
+       from office_history oh where oh.member_id = m.id) as charges,
     mp.title              as profession,
     pc.name               as profession_category,
     a.street, a.house_number, a.postal_code, a.city, a.region, a.country_code,
@@ -289,7 +353,21 @@ left join address a
 left join member_profession mp
        on mp.member_id = m.id and mp.is_primary
 left join profession_category pc
-       on pc.id = mp.category_id;
+       on pc.id = mp.category_id
+where m.consented;   -- only opted-in members appear in the directory / map
+
+-- 6a-ii. Deceased members (memorial). Shown regardless of consent — this is
+-- curated historical content the society maintains. Includes trivia + lifespan.
+create or replace view deceased_directory as
+select
+    m.id, m.salutation, m.first_name, m.last_name, m.maiden_name,
+    m.date_of_birth, m.date_of_death, m.photo_url, m.trivia,
+    extract(year from m.date_of_birth)::int as birth_year,
+    extract(year from m.date_of_death)::int as death_year,
+    mp.title as profession
+from member m
+left join member_profession mp on mp.member_id = m.id and mp.is_primary
+where m.status = 'deceased';
 
 -- 6a-bis. Relatives with derived age (one row per spouse/child).
 create or replace view relative_detail as
@@ -402,8 +480,10 @@ alter table gathering_attendance enable row level security;
 alter table profession_category  enable row level security;
 
 -- MEMBER ------------------------------------------------------------------
+-- Others may read a member only if that member has opted in (consented) and is
+-- not private. Owners always see their own row; admins see all (policy in ROLES).
 create policy member_read on member for select to authenticated
-    using (visibility <> 'private' or auth_user_id = auth.uid());
+    using (auth_user_id = auth.uid() or (consented and visibility <> 'private'));
 create policy member_insert on member for insert to authenticated
     with check (auth_user_id = auth.uid());
 create policy member_update on member for update to authenticated
@@ -531,6 +611,71 @@ create policy booking_update on stocherkahn_booking for update to authenticated
     with check (member_id = current_member_id());
 
 -- =============================================================================
+-- GANZEN  ("Ganzen vor!") — social beer-toast gamification
+-- A member (from) drinks a whole beer dedicated to another (to), with before/
+-- after photos and the traditional message. The recipient sees it in their
+-- inbox and can acknowledge, reciprocate or decline. Stats: leaderboard, drinking
+-- partners, and an activity feed.
+-- =============================================================================
+create table ganzen (
+    id               uuid primary key default gen_random_uuid(),
+    from_member_id   uuid not null references member (id) on delete cascade,  -- drinker (YY)
+    to_member_id     uuid not null references member (id) on delete cascade,  -- addressee (XX)
+    message          text,
+    before_photo_url text,
+    after_photo_url  text,
+    reply_to         uuid references ganzen (id) on delete set null,           -- set for reciprocations
+    status           text not null default 'open'
+                     check (status in ('open','acknowledged','reciprocated','declined')),
+    acknowledged_at  timestamptz,
+    email_sent_at    timestamptz,                                             -- 1h escalation marker
+    created_at       timestamptz not null default now()
+);
+create index on ganzen (from_member_id);
+create index on ganzen (to_member_id, status);
+create index on ganzen (created_at);
+
+alter table ganzen enable row level security;
+create policy ganzen_read on ganzen for select to authenticated using (true);
+create policy ganzen_insert on ganzen for insert to authenticated
+    with check (from_member_id = current_member_id());
+-- The recipient reacts (acknowledge / decline / mark reciprocated).
+create policy ganzen_recipient_update on ganzen for update to authenticated
+    using (to_member_id = current_member_id())
+    with check (to_member_id = current_member_id());
+
+-- Leaderboard: how many Ganze each member has drunk.
+create or replace view ganze_highscore as
+select m.id as member_id, (m.first_name || ' ' || m.last_name) as name, count(g.id) as ganze
+from member m
+join ganzen g on g.from_member_id = m.id
+group by m.id, m.first_name, m.last_name
+order by count(g.id) desc;
+
+-- Activity feed with both names.
+create or replace view ganze_feed as
+select g.id, g.created_at, g.message, g.before_photo_url, g.after_photo_url, g.status,
+       g.from_member_id, (fm.first_name || ' ' || fm.last_name) as from_name,
+       g.to_member_id,   (tm.first_name || ' ' || tm.last_name) as to_name
+from ganzen g
+join member fm on fm.id = g.from_member_id
+join member tm on tm.id = g.to_member_id
+order by g.created_at desc;
+
+-- Drinking partners of a member: with whom they've shared the most Ganze.
+create or replace function ganze_partners(p_member uuid)
+returns table (partner_id uuid, partner_name text, together int)
+language sql stable as $$
+    select p.id, p.first_name || ' ' || p.last_name, count(*)::int
+    from ganzen g
+    join member p on p.id = case when g.from_member_id = p_member
+                                 then g.to_member_id else g.from_member_id end
+    where g.from_member_id = p_member or g.to_member_id = p_member
+    group by p.id, p.first_name, p.last_name
+    order by count(*) desc;
+$$;
+
+-- =============================================================================
 -- ROLES & ADMIN
 -- Additive: Postgres OR-combines multiple PERMISSIVE policies, so these new
 -- policies *grant extra* power to staff/admins without weakening the owner-only
@@ -580,7 +725,9 @@ begin
 end;
 $$;
 
--- Admins can update or delete ANY member.
+-- Admins can read, update or delete ANY member (incl. non-consented / imported).
+create policy member_admin_read on member for select to authenticated
+    using (is_admin());
 create policy member_admin_update on member for update to authenticated
     using (is_admin()) with check (is_admin());
 create policy member_admin_delete on member for delete to authenticated
@@ -592,6 +739,8 @@ create policy address_admin_write on address for all to authenticated
 create policy mp_admin_write on member_profession for all to authenticated
     using (is_admin()) with check (is_admin());
 create policy relative_admin_write on relative for all to authenticated
+    using (is_admin()) with check (is_admin());
+create policy office_history_admin_write on office_history for all to authenticated
     using (is_admin()) with check (is_admin());
 
 -- Staff (officer or admin) manage the profession taxonomy.

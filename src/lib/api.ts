@@ -22,6 +22,7 @@ export const sendPasswordReset = impl.sendPasswordReset;
 
 // profile
 export const getMyMember = impl.getMyMember;
+export const claimMyMember = impl.claimMyMember;
 export const createMyMember = impl.createMyMember;
 export const updateMyMember = impl.updateMyMember;
 export const uploadMyPhoto = impl.uploadMyPhoto;
@@ -37,6 +38,11 @@ export const listMyAddresses = impl.listMyAddresses;
 export const upsertMyAddress = impl.upsertMyAddress;
 export const deleteAddress = impl.deleteAddress;
 
+// office history (Chargen)
+export const listMyOfficeHistory = impl.listMyOfficeHistory;
+export const addOfficeHistory = impl.addOfficeHistory;
+export const deleteOfficeHistory = impl.deleteOfficeHistory;
+
 // relatives
 export const listMyRelatives = impl.listMyRelatives;
 export const addRelative = impl.addRelative;
@@ -45,6 +51,7 @@ export const deleteRelative = impl.deleteRelative;
 // directory & search
 export const getDirectory = impl.getDirectory;
 export const getMapMarkers = impl.getMapMarkers;
+export const listDeceased = impl.listDeceased;
 export const membersByProfession = impl.membersByProfession;
 export const membersNear = impl.membersNear;
 
@@ -72,6 +79,16 @@ export const listMyOfficeTransfers = impl.listMyOfficeTransfers;
 export const initiateOfficeTransfer = impl.initiateOfficeTransfer;
 export const respondOfficeTransfer = impl.respondOfficeTransfer;
 export const reclaimOffice = impl.reclaimOffice;
+
+// ganzen ("Ganzen vor!")
+export const uploadGanzePhoto = impl.uploadGanzePhoto;
+export const sendGanzen = impl.sendGanzen;
+export const listGanzeFeed = impl.listGanzeFeed;
+export const ganzeHighscore = impl.ganzeHighscore;
+export const myGanzePartners = impl.myGanzePartners;
+export const listMyGanzenInbox = impl.listMyGanzenInbox;
+export const acknowledgeGanzen = impl.acknowledgeGanzen;
+export const declineGanzen = impl.declineGanzen;
 
 // admin
 export const getMyRole = impl.getMyRole;

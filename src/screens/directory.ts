@@ -8,13 +8,18 @@ import {
   membersByProfession,
   membersNear,
   getMapMarkers,
+  listDeceased,
+  getMyMember,
   mailtoFor,
   toCsv,
   downloadCsv,
   exportContactsCsv,
 } from '../lib/api';
-import type { DirectoryEntry, NearbyMember, ProfessionMatch } from '../lib/database.types';
+import type { DirectoryEntry, DeceasedEntry, NearbyMember, ProfessionMatch, Member } from '../lib/database.types';
 import { el, field, toast, clear } from '../lib/ui';
+import { showGanzenModal } from './ganze';
+
+let me: Member | null = null;
 
 // A normalized result row used by the list renderer + export.
 interface Row {
@@ -25,15 +30,24 @@ interface Row {
   city?: string | null;
   country?: string | null;
   extra?: string;
+  charges?: string | null;
+  fencing?: number;
 }
+
+// Two crossed student fencing swords (Schläger).
+const SWORDS = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+  stroke-width="1.6" stroke-linecap="round" style="vertical-align:-3px">
+  <path d="M4 4l11 11M20 4L9 15"/><path d="M14 15l3 3M10 15l-3 3"/></svg>`;
 
 export async function mountDirectory(root: HTMLElement): Promise<void> {
   clear(root);
+  me = await getMyMember().catch(() => null);
   const tabs = el('div', { class: 'tabs' }, [
     tabBtn('Übersicht', true),
     tabBtn('Nach Beruf'),
     tabBtn('In meiner Nähe'),
     tabBtn('Karte'),
+    tabBtn('Verstorbene'),
   ]);
   const panel = el('div', { class: 'panel' });
   root.append(el('div', { class: 'profile' }, [el('h1', {}, ['Mitglieder']), tabs, panel]));
@@ -44,7 +58,8 @@ export async function mountDirectory(root: HTMLElement): Promise<void> {
     if (i === 0) renderBrowse(panel);
     else if (i === 1) renderByProfession(panel);
     else if (i === 2) renderNearMe(panel);
-    else renderMap(panel);
+    else if (i === 3) renderMap(panel);
+    else renderDeceased(panel);
   };
   buttons.forEach((b, i) => b.addEventListener('click', () => select(i)));
   select(0);
@@ -87,13 +102,24 @@ function renderResults(host: HTMLElement, rows: Row[]): void {
     const meta = [r.profession, [r.city, r.country].filter(Boolean).join(', '), r.extra]
       .filter(Boolean)
       .join(' · ');
-    const card = el('div', { class: 'member' }, [
-      el('div', {}, [el('strong', {}, [r.name]), el('div', { class: 'muted' }, [meta])]),
+    const info = el('div', {}, [el('strong', {}, [r.name]), el('div', { class: 'muted' }, [meta])]);
+    if (r.charges) info.append(el('div', { class: 'charges' }, [r.charges]));
+    if (r.fencing && r.fencing > 0) {
+      const f = el('div', { class: 'fencing' });
+      f.innerHTML = `${SWORDS} <span>${r.fencing} Partien</span>`;
+      info.append(f);
+    }
+    const actions = el('div', { class: 'member-actions' }, [
       r.email
         ? el('a', { class: 'mailbtn', href: mailtoFor([r.email]) }, ['E-Mail'])
         : el('span', { class: 'muted' }, ['E-Mail verborgen']),
     ]);
-    box.append(card);
+    if (me && r.id !== me.id) {
+      const g = el('button', { type: 'button', class: 'ganzbtn' }, ['Ganzen vor!']);
+      g.addEventListener('click', () => showGanzenModal({ id: r.id, name: r.name }, me!));
+      actions.append(g);
+    }
+    box.append(el('div', { class: 'member' }, [info, actions]));
   }
   host.append(box);
 }
@@ -188,6 +214,38 @@ async function renderMap(panel: HTMLElement): Promise<void> {
   }
 }
 
+// --- Verstorbene (deceased, memorial) ---------------------------------------
+async function renderDeceased(panel: HTMLElement): Promise<void> {
+  clear(panel);
+  panel.append(el('p', { class: 'loading' }, ['Wird geladen…']));
+  let rows: DeceasedEntry[] = [];
+  try {
+    rows = await listDeceased();
+  } catch (e) {
+    clear(panel);
+    panel.append(el('p', { class: 'err' }, [(e as Error).message]));
+    return;
+  }
+  clear(panel);
+  if (rows.length === 0) {
+    panel.append(el('p', { class: 'muted' }, ['Keine Einträge.']));
+    return;
+  }
+  for (const d of rows) {
+    const name = [d.salutation, d.first_name, d.last_name].filter(Boolean).join(' ');
+    const life = [d.birth_year, d.death_year].some((x) => x != null)
+      ? `${d.birth_year ?? '?'}–${d.death_year ?? '?'}`
+      : '';
+    const meta = [d.profession, life].filter(Boolean).join(' · ');
+    const card = el('div', { class: 'card' }, [
+      el('h2', {}, [name]),
+      meta ? el('div', { class: 'muted' }, [meta]) : el('span', {}, []),
+      d.trivia ? el('p', {}, [d.trivia]) : el('span', { class: 'muted' }, ['Keine Trivia hinterlegt.']),
+    ]);
+    panel.append(card);
+  }
+}
+
 // OpenStreetMap raster style — no API key required.
 function rasterStyle() {
   return {
@@ -227,7 +285,9 @@ function fromDirectory(d: DirectoryEntry): Row {
   return {
     id: d.id, name: `${d.first_name} ${d.last_name}`, email: d.show_email ? d.email : null,
     profession: d.profession, city: d.city, country: d.country_code,
-    extra: d.age != null ? `${d.age} Jahre` : undefined,
+    extra: [d.age != null ? `${d.age} Jahre` : null, d.entry_semester ? `seit ${d.entry_semester}` : null]
+      .filter(Boolean).join(' · ') || undefined,
+    charges: d.charges, fencing: d.fencing_bouts,
   };
 }
 function fromProfession(p: ProfessionMatch): Row {

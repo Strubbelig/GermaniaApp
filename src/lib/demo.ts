@@ -8,7 +8,7 @@ import { ageFromDob, toCsv, downloadCsv } from './queries';
 import { toast } from './ui';
 import type {
   Member, Address, ProfessionCategory, MemberProfession, Relative, RelativeDetail,
-  Gathering, GatheringAttendance, DirectoryEntry, NearbyMember, ProfessionMatch, Rsvp, Role,
+  Gathering, GatheringAttendance, DirectoryEntry, DeceasedEntry, NearbyMember, ProfessionMatch, Rsvp, Role,
   StocherkahnSeason, StocherkahnBooking,
 } from './database.types';
 
@@ -38,12 +38,24 @@ const SRC: Src[] = [
 // --- build the in-memory tables ---------------------------------------------
 const members: Member[] = SRC.map((s) => ({
   id: s.id, auth_user_id: null, salutation: s.sal, first_name: s.first, last_name: s.last,
-  maiden_name: null, date_of_birth: s.dob, gender: s.gender, email: s.email, phone: s.phone,
-  website: null, photo_url: null, bio: s.bio, member_since: null, status: 'active',
+  maiden_name: null, date_of_birth: s.dob, date_of_death: null, gender: s.gender,
+  email: s.email, phone: s.phone, website: null, photo_url: null, bio: s.bio, trivia: null,
+  member_since: null, entry_semester: 'WS 2018/19', fencing_bouts: 0,
+  status: 'active', consented: true,
   role: s.id === 'm1' ? 'admin' : s.id === 'm4' ? 'officer' : 'member',
   visibility: 'members', show_email: true, show_address: true, show_family: true,
   created_at: now, updated_at: now,
 }));
+// A deceased member with memorial trivia (Verstorbene tab).
+members.push({
+  id: 'd1', auth_user_id: null, salutation: 'Prof. Dr.', first_name: 'Wilhelm', last_name: 'Stark',
+  maiden_name: null, date_of_birth: '1921-05-04', date_of_death: '1998-11-12', gender: 'male',
+  email: 'wilhelm.stark@example.org', phone: null, website: null, photo_url: null,
+  bio: null, trivia: 'Mitbegründer des Nachkriegs-Convents; verfasste die Mensurchronik und sammelte über 300 Studentenlieder.',
+  member_since: null, entry_semester: 'WS 1946/47', fencing_bouts: 4, status: 'deceased', consented: false, role: 'member',
+  visibility: 'members', show_email: false, show_address: false, show_family: false,
+  created_at: now, updated_at: now,
+});
 
 const addresses: Address[] = SRC.map((s) => ({
   id: 'a-' + s.id, member_id: s.id, label: 'home', is_primary: true, street: s.street,
@@ -61,6 +73,20 @@ const professions: MemberProfession[] = SRC.map((s) => ({
   id: 'p-' + s.id, member_id: s.id, category_id: s.catSlug, title: s.profTitle,
   organization: s.org, is_primary: true, created_at: now, updated_at: now,
 }));
+professions.push({ id: 'p-d1', member_id: 'd1', category_id: null, title: 'Rechtshistoriker', organization: null, is_primary: true, created_at: now, updated_at: now });
+
+// Fechtpartien counts + Chargen history (demo).
+for (const [id, n] of [['m1', 3], ['m4', 5], ['m2', 2], ['d1', 4]] as [string, number][]) {
+  const m = members.find((x) => x.id === id); if (m) m.fencing_bouts = n;
+}
+interface DemoCharge { id: string; member_id: string; office_code: 'sprecher' | 'fechtwart' | 'schriftwart'; semester: string | null; created_at: string; }
+const officeHistory: DemoCharge[] = [
+  { id: uid(), member_id: 'm1', office_code: 'sprecher', semester: 'WS 2019/20', created_at: now },
+  { id: uid(), member_id: 'm1', office_code: 'schriftwart', semester: 'SS 2018', created_at: now },
+  { id: uid(), member_id: 'm4', office_code: 'fechtwart', semester: 'WS 2020/21', created_at: now },
+  { id: uid(), member_id: 'm2', office_code: 'schriftwart', semester: 'SS 2021', created_at: now },
+];
+const abbr = (c: string) => (c === 'sprecher' ? 'x' : c === 'fechtwart' ? 'xx' : c === 'schriftwart' ? 'xxx' : c);
 
 const relatives: Relative[] = [
   rel('m1', 'spouse', 'Karl', 'Berger', 'male', '1979-02-14', 'Hauptstrasse 5', '10115', 'Berlin', 'DE'),
@@ -123,7 +149,11 @@ function directoryFor(m: Member): DirectoryEntry {
     id: m.id, salutation: m.salutation, first_name: m.first_name, last_name: m.last_name,
     email: m.email, phone: m.phone, photo_url: m.photo_url, status: m.status,
     visibility: m.visibility, show_email: m.show_email, date_of_birth: m.date_of_birth,
-    age: ageFromDob(m.date_of_birth), profession: p?.title ?? null,
+    age: ageFromDob(m.date_of_birth), entry_semester: m.entry_semester,
+    fencing_bouts: m.fencing_bouts,
+    charges: officeHistory.filter((h) => h.member_id === m.id)
+      .map((h) => `${abbr(h.office_code)} ${h.semester ?? ''}`.trim()).join(', ') || null,
+    profession: p?.title ?? null,
     profession_category: c?.name ?? null, street: a?.street ?? null, house_number: null,
     postal_code: a?.postal_code ?? null, city: a?.city ?? null, region: a?.region ?? null,
     country_code: a?.country_code ?? null, geo: a?.geo ?? null, latitude: ll.lat, longitude: ll.lon,
@@ -195,11 +225,25 @@ export const addRelative = async (input: any) => {
 export const deleteRelative = async (id: string) => { remove(relatives, id); };
 
 // directory & search
-export const getDirectory = () => wait(members.map(directoryFor).sort((a, b) => a.last_name.localeCompare(b.last_name)));
-export const getMapMarkers = () => wait(members.map(directoryFor).filter((d) => d.latitude != null));
+const visible = (m: Member) => m.consented && m.status === 'active';
+export const getDirectory = () => wait(members.filter(visible).map(directoryFor).sort((a, b) => a.last_name.localeCompare(b.last_name)));
+export const getMapMarkers = () => wait(members.filter(visible).map(directoryFor).filter((d) => d.latitude != null));
+export const listDeceased = (): Promise<DeceasedEntry[]> =>
+  wait(members.filter((m) => m.status === 'deceased').map((m) => {
+    const p = professions.find((x) => x.member_id === m.id && x.is_primary);
+    const yr = (d: string | null) => (d ? new Date(d).getFullYear() : null);
+    return {
+      id: m.id, salutation: m.salutation, first_name: m.first_name, last_name: m.last_name,
+      maiden_name: m.maiden_name, date_of_birth: m.date_of_birth, date_of_death: m.date_of_death,
+      photo_url: m.photo_url, trivia: m.trivia, birth_year: yr(m.date_of_birth),
+      death_year: yr(m.date_of_death), profession: p?.title ?? null,
+    };
+  }));
 export const membersByProfession = (q: string): Promise<ProfessionMatch[]> => {
   const t = q.toLowerCase();
   return wait(professions.filter((p) => {
+    const m = members.find((x) => x.id === p.member_id);
+    if (!m || !visible(m)) return false;
     const c = categories.find((x) => x.id === p.category_id);
     return p.title.toLowerCase().includes(t) || (c?.name.toLowerCase().includes(t) ?? false);
   }).map((p) => {
@@ -208,9 +252,17 @@ export const membersByProfession = (q: string): Promise<ProfessionMatch[]> => {
     return { member_id: m.id, full_name: `${m.first_name} ${m.last_name}`, email: m.email, profession: p.title, organization: p.organization, city: a?.city ?? null, country_code: a?.country_code ?? null };
   }));
 };
+export const claimMyMember = () => wait(ME);
+export const listMyOfficeHistory = (memberId: string) => wait(officeHistory.filter((h) => h.member_id === memberId));
+export const addOfficeHistory = async (input: { member_id: string; office_code: DemoCharge['office_code']; semester?: string | null }) => {
+  const h: DemoCharge = { id: uid(), member_id: input.member_id, office_code: input.office_code, semester: input.semester ?? null, created_at: now };
+  officeHistory.push(h); return h;
+};
+export const deleteOfficeHistory = async (id: string) => { remove(officeHistory, id); };
 export const membersNear = (lat: number, lon: number, radiusKm = 50): Promise<NearbyMember[]> => {
   const rows: NearbyMember[] = [];
   for (const m of members) {
+    if (!visible(m)) continue;
     const ll = latLon(geoOf(m.id));
     if (ll.lat == null || ll.lon == null) continue;
     const d = haversine(lat, lon, ll.lat, ll.lon);
@@ -349,6 +401,47 @@ export const cancelBooking = async (id: string) => {
   const b = bookings.find((x) => x.id === id);
   if (b) b.status = 'cancelled';
 };
+
+// ganzen ("Ganzen vor!")
+interface DemoGanzen { id: string; from_member_id: string; to_member_id: string; message: string | null; before_photo_url: string | null; after_photo_url: string | null; reply_to: string | null; status: 'open' | 'acknowledged' | 'reciprocated' | 'declined'; acknowledged_at: string | null; email_sent_at: string | null; created_at: string; }
+const ganzen: DemoGanzen[] = [
+  { id: uid(), from_member_id: 'm4', to_member_id: 'm1', message: 'Lieber Bundesbruder Anna, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!', before_photo_url: null, after_photo_url: null, reply_to: null, status: 'open', acknowledged_at: null, email_sent_at: null, created_at: now },
+  { id: uid(), from_member_id: 'm1', to_member_id: 'm2', message: 'Lieber Bundesbruder Thomas, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Anna!', before_photo_url: null, after_photo_url: null, reply_to: null, status: 'acknowledged', acknowledged_at: now, email_sent_at: null, created_at: now },
+  { id: uid(), from_member_id: 'm4', to_member_id: 'm1', message: 'Lieber Bundesbruder Anna, ich trinke Dir einen Ganzen zuvor! Dein Bundesbruder Markus!', before_photo_url: null, after_photo_url: null, reply_to: null, status: 'reciprocated', acknowledged_at: now, email_sent_at: null, created_at: now },
+];
+export const uploadGanzePhoto = async (file: File) => URL.createObjectURL(file);
+export const sendGanzen = async (input: any): Promise<DemoGanzen> => {
+  const g: DemoGanzen = { id: uid(), from_member_id: input.from_member_id, to_member_id: input.to_member_id, message: input.message ?? null, before_photo_url: input.before_photo_url ?? null, after_photo_url: input.after_photo_url ?? null, reply_to: input.reply_to ?? null, status: 'open', acknowledged_at: null, email_sent_at: null, created_at: new Date().toISOString() };
+  ganzen.push(g); return g;
+};
+export const listGanzeFeed = (limit = 50) =>
+  wait([...ganzen].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, limit).map((g) => ({
+    id: g.id, created_at: g.created_at, message: g.message, before_photo_url: g.before_photo_url,
+    after_photo_url: g.after_photo_url, status: g.status, from_member_id: g.from_member_id,
+    from_name: nameOf(g.from_member_id) ?? '—', to_member_id: g.to_member_id, to_name: nameOf(g.to_member_id) ?? '—',
+  })));
+export const ganzeHighscore = (limit = 25) => {
+  const counts = new Map<string, number>();
+  for (const g of ganzen) counts.set(g.from_member_id, (counts.get(g.from_member_id) ?? 0) + 1);
+  return wait([...counts.entries()]
+    .map(([member_id, ganze]) => ({ member_id, name: nameOf(member_id) ?? '—', ganze }))
+    .sort((a, b) => b.ganze - a.ganze).slice(0, limit));
+};
+export const myGanzePartners = (memberId: string) => {
+  const counts = new Map<string, number>();
+  for (const g of ganzen) {
+    if (g.from_member_id !== memberId && g.to_member_id !== memberId) continue;
+    const other = g.from_member_id === memberId ? g.to_member_id : g.from_member_id;
+    counts.set(other, (counts.get(other) ?? 0) + 1);
+  }
+  return wait([...counts.entries()]
+    .map(([partner_id, together]) => ({ partner_id, partner_name: nameOf(partner_id) ?? '—', together }))
+    .sort((a, b) => b.together - a.together));
+};
+export const listMyGanzenInbox = (memberId: string) =>
+  wait(ganzen.filter((g) => g.to_member_id === memberId).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)));
+export const acknowledgeGanzen = async (id: string) => { const g = ganzen.find((x) => x.id === id); if (g) { g.status = 'acknowledged'; g.acknowledged_at = now; } };
+export const declineGanzen = async (id: string) => { const g = ganzen.find((x) => x.id === id); if (g) { g.status = 'declined'; g.acknowledged_at = now; } };
 
 function remove<T extends { id: string }>(arr: T[], id: string): void {
   const i = arr.findIndex((x) => x.id === id);

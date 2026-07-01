@@ -2,6 +2,36 @@
 
 All notable changes to GermaniaApp. Newest first. Dates are approximate build dates.
 
+## [0.7.0] — Chargen, Fechtpartien, "Ganzen vor!" — 2026-07
+
+### Added
+- **Chargen (Ämtergeschichte):** members record past x/xx/xxx terms with the semester;
+  shown in gold under their name in the directory (`office_history`).
+- **Fechtpartien:** a Mensuren count per member, shown with crossed student swords.
+- **Eintrittssemester:** required semester-of-joining field on every profile.
+- **"Ganzen vor!" gamification:** a button under each member; a disclaimer with a
+  before/after photo (Supabase Storage) and a decline option
+  ("Ich bin phrittig und kann nichts am Glas!"). The toast message lands in the
+  recipient's Postfach; they can acknowledge or decline. Stats: Bestenliste (most
+  Ganze), Trinkpartner (with whom you drank most), and a Verlauf feed. Email
+  escalation after 1h of no reaction via the scheduled `ganze-reminders` function.
+- Bottom navigation is now horizontally scrollable to fit the new sections.
+
+## [0.6.0] — Member import, opt-in consent, deceased tab — 2026-07
+
+### Added
+- **Excel import** (`scripts/import-members.mjs`): generate SQL from your .xlsx
+  (phone, address, trivia, …) into hidden, unclaimed member rows. Guide: `IMPORT.md`.
+- **Opt-in consent:** imported/prefilled members are hidden from everyone until they
+  claim their row and opt in. New `consented` flag; directory, search, map and RLS all
+  respect it. Self-registered members are visible by default.
+- **Claim by verified phone:** `claim_my_member()` links a signed-in user to the
+  prefilled row whose phone matches their SMS-verified number (needs a Supabase SMS
+  provider). Profile then shows an "Auf der App sichtbar sein" opt-in toggle.
+- **Trivia** field on every member.
+- **Verstorbene (deceased) tab:** memorial view of deceased members with lifespan and
+  trivia, shown regardless of consent (`date_of_death`, `deceased_directory` view).
+
 ## [0.5.0] — Offices, event subsections, per-hour boat — 2026-07
 
 ### Added

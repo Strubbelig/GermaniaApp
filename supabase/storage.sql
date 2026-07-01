@@ -36,3 +36,19 @@ using (
   bucket_id = 'member-photos'
   and (storage.foldername(name))[1] = auth.uid()::text
 );
+
+-- Ganzen before/after photos ------------------------------------------------
+insert into storage.buckets (id, name, public)
+values ('ganze-photos', 'ganze-photos', true)
+on conflict (id) do nothing;
+
+create policy "ganze photos readable"
+on storage.objects for select
+using (bucket_id = 'ganze-photos');
+
+create policy "members upload ganze photos to own folder"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'ganze-photos'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);

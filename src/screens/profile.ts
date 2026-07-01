@@ -8,6 +8,7 @@
 // =============================================================================
 import {
   getMyMember,
+  claimMyMember,
   createMyMember,
   updateMyMember,
   uploadMyPhoto,
@@ -22,6 +23,9 @@ import {
   addRelative,
   deleteRelative,
   ageFromDob,
+  listMyOfficeHistory,
+  addOfficeHistory,
+  deleteOfficeHistory,
 } from '../lib/api';
 import type { Member, ProfessionCategory } from '../lib/database.types';
 
@@ -55,6 +59,10 @@ function reqd(node: HTMLInputElement): HTMLInputElement {
   node.required = true;
   return node;
 }
+function semesterInput(node: HTMLInputElement): HTMLInputElement {
+  node.placeholder = 'z. B. WS 2016/17 oder SS 2018';
+  return node;
+}
 function toast(msg: string, ok = true): void {
   const t = el('div', { class: `toast ${ok ? 'ok' : 'err'}` }, [msg]);
   document.body.append(t);
@@ -68,6 +76,8 @@ export async function mountProfileEditor(root: HTMLElement): Promise<void> {
 
   let member: Member | null = null;
   try {
+    // Link a prefilled (imported) row to this account by verified phone, if any.
+    await claimMyMember().catch(() => null);
     member = await getMyMember();
   } catch (e) {
     root.innerHTML = '';
@@ -89,6 +99,7 @@ export async function mountProfileEditor(root: HTMLElement): Promise<void> {
       el('h1', {}, ['Mein Profil bearbeiten']),
       renderPersonal(member),
       renderPrivacy(member),
+      await renderOfficeHistory(member.id),
       await renderProfessions(member.id, categories),
       await renderAddresses(member.id),
       await renderFamily(member.id),
@@ -104,6 +115,7 @@ function renderFirstRun(root: HTMLElement): HTMLElement {
     field('Nachname', reqd(input('last_name', ''))),
     field('E-Mail', reqd(input('email', '', 'email'))),
     field('Geburtsdatum', reqd(input('date_of_birth', '', 'date'))),
+    field('Eintrittssemester', semesterInput(reqd(input('entry_semester', '')))),
     el('button', { type: 'submit', class: 'primary' }, ['Profil erstellen']),
   ]);
   form.addEventListener('submit', async (e) => {
@@ -115,6 +127,7 @@ function renderFirstRun(root: HTMLElement): HTMLElement {
         last_name: String(f.get('last_name')),
         email: String(f.get('email')),
         date_of_birth: String(f.get('date_of_birth')),
+        entry_semester: String(f.get('entry_semester')),
         salutation: null, maiden_name: null, gender: null,
         phone: null, website: null, photo_url: null, bio: null, member_since: null,
       });
@@ -144,8 +157,11 @@ function renderPersonal(m: Member): HTMLElement {
       field('Telefon', input('phone', m.phone, 'tel')),
       field('Website', input('website', m.website, 'url')),
       field('Geburtsdatum (Pflicht)', reqd(input('date_of_birth', m.date_of_birth, 'date'))),
+      field('Eintrittssemester (Pflicht)', semesterInput(reqd(input('entry_semester', m.entry_semester)))),
+      field('Fechtpartien', input('fencing_bouts', String(m.fencing_bouts ?? 0), 'number')),
     ]),
     field('Über mich', el('textarea', { name: 'bio', rows: 3 }, [m.bio ?? ''])),
+    field('Trivia / Wissenswertes', el('textarea', { name: 'trivia', rows: 3 }, [m.trivia ?? ''])),
     el('button', { type: 'submit', class: 'primary' }, ['Angaben speichern']),
   ]);
 
@@ -174,7 +190,10 @@ function renderPersonal(m: Member): HTMLElement {
         phone: str(f, 'phone'),
         website: str(f, 'website'),
         date_of_birth: str(f, 'date_of_birth'),
+        entry_semester: str(f, 'entry_semester'),
+        fencing_bouts: Number(f.get('fencing_bouts') ?? 0) || 0,
         bio: str(f, 'bio'),
+        trivia: str(f, 'trivia'),
       });
       toast('Gespeichert');
     } catch (err) {
@@ -193,6 +212,8 @@ function renderPrivacy(m: Member): HTMLElement {
   ]);
   const form = el('form', { class: 'card' }, [
     el('h2', {}, ['Privatsphäre']),
+    toggle('consented', 'Auf der App sichtbar sein (Opt-in)', m.consented),
+    el('p', { class: 'muted' }, ['Ohne dieses Häkchen sehen andere Mitglieder deinen Eintrag nicht.']),
     field('Sichtbarkeit des Profils', sel),
     toggle('show_email', 'Meine E-Mail für Mitglieder zeigen', m.show_email),
     toggle('show_address', 'Meine Adresse zeigen', m.show_address),
@@ -205,6 +226,7 @@ function renderPrivacy(m: Member): HTMLElement {
     try {
       await updateMyMember({
         visibility: sel.value as Member['visibility'],
+        consented: f.get('consented') === 'on',
         show_email: f.get('show_email') === 'on',
         show_address: f.get('show_address') === 'on',
         show_family: f.get('show_family') === 'on',
@@ -405,6 +427,63 @@ async function renderFamily(memberId: string): Promise<HTMLElement> {
         postal_code: str(f, 'postal_code'),
         city: str(f, 'city'),
         country_code: str(f, 'country_code'),
+      });
+      form.reset();
+      toast('Hinzugefügt');
+      await refresh();
+    } catch (err) {
+      toast((err as Error).message, false);
+    }
+  });
+
+  card.append(form);
+  await refresh();
+  return card;
+}
+
+// --- office history (Chargen) ------------------------------------------------
+async function renderOfficeHistory(memberId: string): Promise<HTMLElement> {
+  const card = el('div', { class: 'card' }, [el('h2', {}, ['Chargen (Ämtergeschichte)'])]);
+  const list = el('div', { class: 'list' });
+  card.append(list);
+  const abbr = (c: string) => (c === 'sprecher' ? 'x' : c === 'fechtwart' ? 'xx' : 'xxx');
+
+  const refresh = async () => {
+    list.innerHTML = '';
+    const items = await listMyOfficeHistory(memberId);
+    if (items.length === 0) list.append(el('p', { class: 'muted' }, ['Noch keine Chargen eingetragen.']));
+    for (const h of items) {
+      const row = el('div', { class: 'row' }, [
+        el('span', {}, [`${abbr(h.office_code)} · ${h.semester ?? ''}`.trim()]),
+        el('button', { class: 'link danger', type: 'button' }, ['Entfernen']),
+      ]);
+      $(row, 'button').addEventListener('click', async () => {
+        await deleteOfficeHistory(h.id);
+        toast('Entfernt');
+        await refresh();
+      });
+      list.append(row);
+    }
+  };
+
+  const form = el('form', { class: 'inline' }, [
+    el('select', { name: 'office_code' }, [
+      opt('sprecher', 'x (Sprecher)', 'sprecher'),
+      opt('fechtwart', 'xx (Fechtwart)', 'sprecher'),
+      opt('schriftwart', 'xxx (Schriftwart)', 'sprecher'),
+    ]),
+    input('semester', '', 'text'),
+    el('button', { type: 'submit', class: 'primary' }, ['Hinzufügen']),
+  ]);
+  $(form, 'input[name=semester]').setAttribute('placeholder', 'Semester, z. B. WS 2019/20');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = new FormData(form);
+    try {
+      await addOfficeHistory({
+        member_id: memberId,
+        office_code: f.get('office_code') as never,
+        semester: str(f, 'semester'),
       });
       form.reset();
       toast('Hinzugefügt');

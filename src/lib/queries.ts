@@ -17,6 +17,7 @@ import type {
   Gathering,
   GatheringAttendance,
   DirectoryEntry,
+  DeceasedEntry,
   ContactExportRow,
   NearbyMember,
   ProfessionMatch,
@@ -26,6 +27,11 @@ import type {
   StocherkahnBooking,
   Office,
   OfficeTransfer,
+  OfficeHistory,
+  Ganzen,
+  GanzeHighscore,
+  GanzeFeed,
+  GanzePartner,
 } from './database.types';
 import { civilDawnDusk } from './suntimes';
 
@@ -105,6 +111,22 @@ export async function getMyMember(): Promise<Member | null> {
   return unwrap(res);
 }
 
+/** Link the signed-in user to a prefilled (imported) row by verified phone. */
+export async function claimMyMember(): Promise<string | null> {
+  const { data, error } = await supabase.rpc('claim_my_member');
+  if (error) throw new Error(error.message);
+  return (data as string | null) ?? null;
+}
+
+/** Deceased members (memorial), shown regardless of consent. */
+export async function listDeceased(): Promise<DeceasedEntry[]> {
+  const res = await supabase
+    .from('deceased_directory')
+    .select('*')
+    .order('last_name');
+  return unwrap(res) ?? [];
+}
+
 /** Create the member row on first login, linking it to the auth user. */
 export async function createMyMember(
   input: Omit<Member, 'id' | 'auth_user_id' | 'created_at' | 'updated_at' | 'status' | 'visibility' | 'show_email' | 'show_address' | 'show_family'> &
@@ -114,7 +136,7 @@ export async function createMyMember(
   if (!uid) throw new Error('Not signed in.');
   const res = await supabase
     .from('member')
-    .insert({ ...input, auth_user_id: uid })
+    .insert({ ...input, auth_user_id: uid, consented: true })
     .select('*')
     .single();
   return unwrap(res);
@@ -254,6 +276,32 @@ export async function updateMyProfession(
 
 export async function deleteMyProfession(id: string): Promise<void> {
   const { error } = await supabase.from('member_profession').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// =============================================================================
+// OFFICE HISTORY / CHARGEN  (a member's past x / xx / xxx terms)
+// =============================================================================
+export async function listMyOfficeHistory(memberId: string): Promise<OfficeHistory[]> {
+  const res = await supabase
+    .from('office_history')
+    .select('*')
+    .eq('member_id', memberId)
+    .order('semester', { ascending: false });
+  return unwrap(res) ?? [];
+}
+
+export async function addOfficeHistory(input: {
+  member_id: string;
+  office_code: OfficeHistory['office_code'];
+  semester?: string | null;
+}): Promise<OfficeHistory> {
+  const res = await supabase.from('office_history').insert(input).select('*').single();
+  return unwrap(res);
+}
+
+export async function deleteOfficeHistory(id: string): Promise<void> {
+  const { error } = await supabase.from('office_history').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
@@ -553,6 +601,70 @@ export async function respondOfficeTransfer(transferId: string, accept: boolean)
 
 export async function reclaimOffice(officeId: string, semester: string): Promise<void> {
   const { error } = await supabase.rpc('reclaim_office', { p_office: officeId, p_semester: semester });
+  if (error) throw new Error(error.message);
+}
+
+// =============================================================================
+// GANZEN  ("Ganzen vor!") — social beer-toast gamification
+// =============================================================================
+export async function uploadGanzePhoto(file: File, kind: 'before' | 'after'): Promise<string> {
+  const uid = await getCurrentUserId();
+  if (!uid) throw new Error('Nicht angemeldet.');
+  const path = `${uid}/${Date.now()}-${kind}-${file.name}`;
+  const up = await supabase.storage.from('ganze-photos').upload(path, file, { upsert: true });
+  if (up.error) throw new Error(up.error.message);
+  return supabase.storage.from('ganze-photos').getPublicUrl(path).data.publicUrl;
+}
+
+export async function sendGanzen(input: {
+  from_member_id: string;
+  to_member_id: string;
+  message: string;
+  before_photo_url?: string | null;
+  after_photo_url?: string | null;
+  reply_to?: string | null;
+}): Promise<Ganzen> {
+  const res = await supabase.from('ganzen').insert(input).select('*').single();
+  return unwrap(res);
+}
+
+export async function listGanzeFeed(limit = 50): Promise<GanzeFeed[]> {
+  const res = await supabase.from('ganze_feed').select('*').limit(limit);
+  return unwrap(res) ?? [];
+}
+
+export async function ganzeHighscore(limit = 25): Promise<GanzeHighscore[]> {
+  const res = await supabase.from('ganze_highscore').select('*').limit(limit);
+  return unwrap(res) ?? [];
+}
+
+export async function myGanzePartners(memberId: string): Promise<GanzePartner[]> {
+  const res = await supabase.rpc('ganze_partners', { p_member: memberId });
+  return unwrap(res) ?? [];
+}
+
+export async function listMyGanzenInbox(memberId: string): Promise<Ganzen[]> {
+  const res = await supabase
+    .from('ganzen')
+    .select('*')
+    .eq('to_member_id', memberId)
+    .order('created_at', { ascending: false });
+  return unwrap(res) ?? [];
+}
+
+export async function acknowledgeGanzen(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('ganzen')
+    .update({ status: 'acknowledged', acknowledged_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function declineGanzen(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('ganzen')
+    .update({ status: 'declined', acknowledged_at: new Date().toISOString() })
+    .eq('id', id);
   if (error) throw new Error(error.message);
 }
 
