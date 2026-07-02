@@ -14,16 +14,14 @@ import {
   getMyMember,
 } from '../lib/api';
 import { civilDawnDusk } from '../lib/suntimes';
+import { berlinInstant, berlinHHMM, berlinDecimalHour } from '../lib/berlin';
 import type { Member, StocherkahnSeason, StocherkahnBooking } from '../lib/database.types';
 import { el, field, toast, clear } from '../lib/ui';
 
-const TZ = 'Europe/Berlin';
-const hhmm = (iso: string | Date) =>
-  new Date(iso).toLocaleTimeString('de-DE', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+const hhmm = (iso: string | Date) => berlinHHMM(iso);
 const tag = (d: string | Date) => new Date(d).toLocaleDateString('de-DE', { dateStyle: 'medium' });
-const ceilHour = (d: Date) => new Date(Math.ceil(d.getTime() / 3_600_000) * 3_600_000);
-const floorHour = (d: Date) => new Date(Math.floor(d.getTime() / 3_600_000) * 3_600_000);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+const p2 = (n: number) => String(n).padStart(2, '0');
 
 export async function mountStocherkahn(root: HTMLElement): Promise<void> {
   clear(root);
@@ -79,8 +77,8 @@ async function renderSchedule(season: StocherkahnSeason): Promise<HTMLElement> {
     if (rows.length === 0) { body.append(el('p', { class: 'muted' }, ['Frei — keine Buchung an diesem Tag.'])); return; }
     // day window (dawn–dusk) to scale the bars
     const sun = civilDawnDusk(dateInput.value, season.latitude, season.longitude);
-    const dayStart = sun.dawn ? +floorHour(sun.dawn) : +new Date(`${dateInput.value}T06:00:00`);
-    const dayEnd = sun.dusk ? +ceilHour(sun.dusk) : +new Date(`${dateInput.value}T22:00:00`);
+    const dayStart = +berlinInstant(dateInput.value, sun.dawn ? Math.floor(berlinDecimalHour(sun.dawn)) : 6);
+    const dayEnd = +berlinInstant(dateInput.value, sun.dusk ? Math.ceil(berlinDecimalHour(sun.dusk)) : 22);
     const span = Math.max(1, dayEnd - dayStart);
     for (const r of rows) {
       const s = +new Date(r.starts_at), e = +new Date(r.ends_at);
@@ -126,14 +124,13 @@ async function renderBookingForm(
   const book = el('button', { type: 'button', class: 'primary' }, ['Buchen']);
   book.disabled = true;
 
-  let dusk: Date | null = null;
+  let endHour = 0; // latest bookable German hour (dusk, floored)
 
   const rebuildDurations = () => {
     clear(durSel);
-    const start = new Date(Number(startSel.value));
-    if (!dusk) return;
-    const maxHours = Math.floor((+dusk - +start) / 3_600_000);
-    for (let h = 1; h <= Math.max(1, maxHours); h++) {
+    const startHour = Number(startSel.value);
+    const maxHours = Math.max(1, endHour - startHour);
+    for (let h = 1; h <= maxHours; h++) {
       durSel.append(el('option', { value: h }, [`${h} Stunde${h > 1 ? 'n' : ''}`]));
     }
   };
@@ -144,13 +141,11 @@ async function renderBookingForm(
     if (!d) return;
     const sun = civilDawnDusk(d, season.latitude, season.longitude);
     if (!sun.dawn || !sun.dusk) { windowLine.textContent = 'An diesem Tag gibt es kein Tageslichtfenster.'; return; }
-    dusk = sun.dusk;
     windowLine.textContent = `Dämmerung ${hhmm(sun.dawn)} bis ${hhmm(sun.dusk)} (Ortszeit)`;
-    const first = ceilHour(sun.dawn), last = floorHour(sun.dusk);
-    const starts: Date[] = [];
-    for (let t = +first; t < +last; t += 3_600_000) starts.push(new Date(t));
-    if (starts.length === 0) { windowLine.textContent += ' — zu kurz zum Buchen.'; return; }
-    for (const s of starts) startSel.append(el('option', { value: +s }, [hhmm(s)]));
+    const startHour = Math.ceil(berlinDecimalHour(sun.dawn));   // first whole hour after dawn
+    endHour = Math.floor(berlinDecimalHour(sun.dusk));          // last whole hour before dusk
+    if (endHour <= startHour) { windowLine.textContent += ' — zu kurz zum Buchen.'; return; }
+    for (let h = startHour; h < endHour; h++) startSel.append(el('option', { value: h }, [`${p2(h)}:00`]));
     book.disabled = false;
     rebuildDurations();
     const onDay = allBookings.filter((b) => b.booking_date === d);
@@ -163,9 +158,10 @@ async function renderBookingForm(
   book.addEventListener('click', async () => {
     const d = dateInput.value;
     const hrs = Number(durSel.value || 0);
-    if (!d || !startSel.value || !hrs) return;
-    const s = new Date(Number(startSel.value));
-    const e = new Date(+s + hrs * 3_600_000);
+    if (!d || startSel.value === '' || !hrs) return;
+    const startHour = Number(startSel.value);
+    const s = berlinInstant(d, startHour);
+    const e = berlinInstant(d, startHour + hrs);
     book.disabled = true;
     book.textContent = 'Buche…';
     try {
