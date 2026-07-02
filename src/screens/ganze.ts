@@ -109,7 +109,7 @@ async function renderInbox(panel: HTMLElement, me: Member | null): Promise<void>
   panel.innerHTML = '';
   if (!me) { panel.append(el('p', { class: 'muted' }, ['Bitte anmelden.'])); return; }
   const items = await listMyGanzenInbox(me.id).catch(() => []);
-  if (items.length === 0) { panel.append(el('p', { class: 'muted' }, ['Noch keine Ganze erhalten.'])); return; }
+  if (items.length === 0) { panel.append(el('p', { class: 'muted' }, ['Dir wurden leider noch keine Ganzen vorgetrunken! 😢'])); return; }
   for (const g of items) {
     const card = el('div', { class: 'card' }, [el('p', {}, [g.message ?? ''])]);
     const pr = photoRow(g.before_photo_url, g.after_photo_url);
